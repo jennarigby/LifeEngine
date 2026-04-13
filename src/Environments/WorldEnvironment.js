@@ -9,6 +9,7 @@ const FossilRecord = require('../Stats/FossilRecord');
 const WorldConfig = require('../WorldConfig');
 const SerializeHelper = require('../Utils/SerializeHelper');
 const Species = require('../Stats/Species');
+const CustomOrganismGenerator = require('../Organism/CustomOrganismGenerator');
 
 class WorldEnvironment extends Environment{
     constructor(engine, cell_size) {
@@ -77,13 +78,11 @@ class WorldEnvironment extends Environment{
     }
 
     OriginOfLife() {
-        var center = this.grid_map.getCenter();
-        var org = new Organism(center[0], center[1], this);
-        org.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
-        org.anatomy.addDefaultCell(CellStates.producer, 1, 1);
-        org.anatomy.addDefaultCell(CellStates.producer, -1, -1);
-        this.addOrganism(org);
-        FossilRecord.addSpecies(org, null);
+        CustomOrganismGenerator.spawnPopulation(this, 10, 5); 
+        // Register species
+        for (let org of this.organisms) {
+            FossilRecord.addSpecies(org, null);
+        }
     }
 
     addOrganism(organism) {

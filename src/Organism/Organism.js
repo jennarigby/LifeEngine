@@ -8,7 +8,7 @@ const FossilRecord = require("../Stats/FossilRecord");
 const SerializeHelper = require("../Utils/SerializeHelper");
 
 class Organism {
-    constructor(col, row, env, parent=null) {
+    constructor(col, row, env, parent = null) {
         this.c = col;
         this.r = row;
         this.env = env;
@@ -27,17 +27,55 @@ class Organism {
         if (parent != null) {
             this.inherit(parent);
         }
+        this.role = "prey"; // default
+
+        // Alarm system
+        this.isCallingAlarm = false;
+        this.heardAlarm = false;
+        this.alarmCooldown = 0;
     }
 
     inherit(parent) {
         this.move_range = parent.move_range;
         this.mutability = parent.mutability;
         this.species = parent.species;
-        for (var c of parent.anatomy.cells){
+        for (var c of parent.anatomy.cells) {
             //deep copy parent cells
             this.anatomy.addInheritCell(c);
         }
         this.brain.copy(parent.brain);
+        this.role = parent.role;
+    }
+
+    detectPredator(radius = 3) {
+        let env = this.env;
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+
+                if (cell && cell.owner && cell.owner.role === "predator") {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    broadcastAlarm(radius) {
+        let env = this.env;
+
+        for (let org of env.organisms) {
+            if (org === this) continue;
+
+            let dx = org.c - this.c;
+            let dy = org.r - this.r;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= radius && org.role === "prey") {
+                org.heardAlarm = true;
+            }
+        }
     }
 
     // amount of food required before it can reproduce
@@ -57,23 +95,23 @@ class Organism {
         //produce mutated child
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
-        if(Hyperparams.rotationEnabled){
+        if (Hyperparams.rotationEnabled) {
             org.rotation = Directions.getRandomDirection();
         }
         var prob = this.mutability;
-        if (Hyperparams.useGlobalMutability){
+        if (Hyperparams.useGlobalMutability) {
             prob = Hyperparams.globalMutability;
         }
         else {
             //mutate the mutability
             if (Math.random() <= 0.5)
                 org.mutability++;
-            else{ 
+            else {
                 org.mutability--;
                 if (org.mutability < 1)
                     org.mutability = 1;
             }
-        } 
+        }
         var mutated = false;
         if (this.calcRandomChance(prob)) {
             mutated = org.mutate();
@@ -84,13 +122,12 @@ class Organism {
         var direction_r = direction[1];
         var offset = (Math.floor(Math.random() * 3));
         var basemovement = this.anatomy.birth_distance;
-        var new_c = this.c + (direction_c*basemovement) + (direction_c*offset);
-        var new_r = this.r + (direction_r*basemovement) + (direction_r*offset);
+        var new_c = this.c + (direction_c * basemovement) + (direction_c * offset);
+        var new_r = this.r + (direction_r * basemovement) + (direction_r * offset);
 
-        if (org.isClear(new_c, new_r, org.rotation, true) && 
-            org.isStraightPath(new_c, new_r, this.c, this.r, this) && 
-            this.env.canAddOrganism())
-        {
+        if (org.isClear(new_c, new_r, org.rotation, true) &&
+            org.isStraightPath(new_c, new_r, this.c, this.r, this) &&
+            this.env.canAddOrganism()) {
             org.c = new_c;
             org.r = new_r;
             this.env.addOrganism(org);
@@ -152,24 +189,24 @@ class Organism {
                 }
             }
         }
-        if (this.calcRandomChance(Hyperparams.changeProb)){
+        if (this.calcRandomChance(Hyperparams.changeProb)) {
             let cell = this.anatomy.getRandomCell();
             let state = CellStates.getRandomLivingType();
             this.anatomy.replaceCell(state, cell.loc_col, cell.loc_row);
             changed = true;
         }
-        if (this.calcRandomChance(Hyperparams.removeProb)){
-            if(this.anatomy.cells.length > 1) {
+        if (this.calcRandomChance(Hyperparams.removeProb)) {
+            if (this.anatomy.cells.length > 1) {
                 let cell = this.anatomy.getRandomCell();
                 removed = this.anatomy.removeCell(cell.loc_col, cell.loc_row);
             }
         }
-        if (this.anatomy.is_mover && this.calcRandomChance(Hyperparams.brainMutationChance)) { 
+        if (this.anatomy.is_mover && this.calcRandomChance(Hyperparams.brainMutationChance)) {
             if (this.anatomy.has_eyes) {
                 this.brain.mutate();
             }
             this.move_range += Math.floor(Math.random() * 4) - 2;
-            if (this.move_range <= 0){
+            if (this.move_range <= 0) {
                 this.move_range = 1;
             };
         }
@@ -201,16 +238,16 @@ class Organism {
         return false;
     }
 
-    attemptRotate(rotation=null) {
-        if(!Hyperparams.rotationEnabled){
+    attemptRotate(rotation = null) {
+        if (!Hyperparams.rotationEnabled) {
             this.direction = Directions.getRandomDirection();
             this.move_count = 0;
             return true;
         }
-        if(rotation == null){
+        if (rotation == null) {
             rotation = Directions.getRandomDirection();
         }
-        if(this.isClear(this.c, this.r, rotation)){
+        if (this.isClear(this.c, this.r, rotation)) {
             for (var cell of this.anatomy.cells) {
                 var real_c = this.c + cell.rotatedCol(this.rotation);
                 var real_r = this.r + cell.rotatedRow(this.rotation);
@@ -231,30 +268,30 @@ class Organism {
     }
 
     // assumes either c1==c2 or r1==r2, returns true if there is a clear path from point 1 to 2
-    isStraightPath(c1, r1, c2, r2, parent){
+    isStraightPath(c1, r1, c2, r2, parent) {
         if (c1 == c2) {
-            if (r1 > r2){
+            if (r1 > r2) {
                 var temp = r2;
                 r2 = r1;
                 r1 = temp;
             }
-            for (var i=r1; i!=r2; i++) {
+            for (var i = r1; i != r2; i++) {
                 var cell = this.env.grid_map.cellAt(c1, i)
-                if (!this.isPassableCell(cell, parent)){
+                if (!this.isPassableCell(cell, parent)) {
                     return false;
                 }
             }
             return true;
         }
         else {
-            if (c1 > c2){
+            if (c1 > c2) {
                 var temp = c2;
                 c2 = c1;
                 c1 = temp;
             }
-            for (var i=c1; i!=c2; i++) {
+            for (var i = c1; i != c2; i++) {
                 var cell = this.env.grid_map.cellAt(i, r1);
-                if (!this.isPassableCell(cell, parent)){
+                if (!this.isPassableCell(cell, parent)) {
                     return false;
                 }
             }
@@ -262,17 +299,17 @@ class Organism {
         }
     }
 
-    isPassableCell(cell, parent){
+    isPassableCell(cell, parent) {
         return cell != null && (cell.state == CellStates.empty || cell.owner == this || cell.owner == parent || cell.state == CellStates.food);
     }
 
-    isClear(col, row, rotation=this.rotation) {
-        for(var loccell of this.anatomy.cells) {
+    isClear(col, row, rotation = this.rotation) {
+        for (var loccell of this.anatomy.cells) {
             var cell = this.getRealCell(loccell, col, row, rotation);
-            if (cell==null) {
+            if (cell == null) {
                 return false;
             }
-            if (cell.owner==this || cell.state==CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state==CellStates.food)){
+            if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)) {
                 continue;
             }
             return false;
@@ -306,6 +343,12 @@ class Organism {
     }
 
     update() {
+        // Reset alarm state each tick
+        this.heardAlarm = false;
+
+        if (this.alarmCooldown > 0) {
+            this.alarmCooldown--;
+        }
         this.lifetime++;
         if (this.lifetime > this.lifespan()) {
             this.die();
@@ -314,22 +357,44 @@ class Organism {
         if (this.food_collected >= this.foodNeeded()) {
             this.reproduce();
         }
+        // Alarm logic (ONLY for prey)
+        if (this.role === "prey") {
+            let predatorNearby = this.detectPredator();
+
+            if (predatorNearby && this.alarmCooldown === 0) {
+                this.isCallingAlarm = true;
+                this.alarmCooldown = 10;
+            } else {
+                this.isCallingAlarm = false;
+            }
+
+            if (this.isCallingAlarm) {
+                this.broadcastAlarm(15);
+
+                // cost of signalling (IMPORTANT)
+                this.food_collected -= 0.2;
+            }
+        }
         for (var cell of this.anatomy.cells) {
             cell.performFunction();
             if (!this.living)
                 return this.living
         }
-        
+
         if (this.anatomy.is_mover) {
             const Decision = Brain.Decision;
             let brain_decision = Decision.neutral;
             let brain_direction = 0;
             if (this.anatomy.has_eyes) {
-                let {decision, move_direction} = this.brain.decide();
+                let { decision, move_direction } = this.brain.decide();
                 brain_decision = decision;
                 brain_direction = move_direction;
             }
             let dontmove = false;
+            if (this.role === "prey" && this.heardAlarm) {
+                this.move_range = 6; // fixed escape speed
+                this.changeDirection(Directions.getRandomDirection());
+            }
             switch (brain_decision) {
                 case Decision.neutral:
                     // move move_range times, then randomly rotate/change direction
@@ -381,7 +446,7 @@ class Organism {
         return this.living;
     }
 
-    getRealCell(local_cell, c=this.c, r=this.r, rotation=this.rotation){
+    getRealCell(local_cell, c = this.c, r = this.r, rotation = this.rotation) {
         var real_c = c + local_cell.rotatedCol(rotation);
         var real_r = r + local_cell.rotatedRow(rotation);
         return this.env.grid_map.cellAt(real_c, real_r);
@@ -392,9 +457,9 @@ class Organism {
         if (this.anatomy.cells.length === 0) {
             return false;
         }
-        for (let i=0; i<this.anatomy.cells.length; i++) {
+        for (let i = 0; i < this.anatomy.cells.length; i++) {
             let cell = this.anatomy.cells[i];
-            for (let j=i+1; j<this.anatomy.cells.length; j++) {
+            for (let j = i + 1; j < this.anatomy.cells.length; j++) {
                 let toCompare = this.anatomy.cells[j];
                 if (cell.loc_col === toCompare.loc_col && cell.loc_row === toCompare.loc_row) {
                     return false;
