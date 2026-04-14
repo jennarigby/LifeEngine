@@ -33,6 +33,8 @@ class Organism {
         this.isCallingAlarm = false;
         this.heardAlarm = false;
         this.alarmCooldown = 0;
+        this.alarmTimer = 0;
+        this.alarmSource = null;
     }
 
     inherit(parent) {
@@ -47,7 +49,7 @@ class Organism {
         this.role = parent.role;
     }
 
-    detectPredator(radius = 3) {
+    detectPredator(radius = 10) {
         let env = this.env;
 
         for (let dx = -radius; dx <= radius; dx++) {
@@ -74,6 +76,8 @@ class Organism {
 
             if (dist <= radius && org.role === "prey") {
                 org.heardAlarm = true;
+                org.alarmSource = { c: this.c, r: this.r };
+                org.alarmTimer = 20; // lasts a few ticks
             }
         }
     }
@@ -343,11 +347,11 @@ class Organism {
     }
 
     update() {
-        // Reset alarm state each tick
-        this.heardAlarm = false;
-
         if (this.alarmCooldown > 0) {
             this.alarmCooldown--;
+        }
+        if (this.alarmTimer > 0) {
+            this.alarmTimer--;
         }
         this.lifetime++;
         if (this.lifetime > this.lifespan()) {
@@ -369,10 +373,10 @@ class Organism {
             }
 
             if (this.isCallingAlarm) {
-                this.broadcastAlarm(15);
+                this.broadcastAlarm(30);
 
-                // cost of signalling (IMPORTANT)
-                this.food_collected -= 0.2;
+                // cost of signalling — floor at 0 to prevent negative food
+                this.food_collected = Math.max(0, this.food_collected - 0.2);
             }
         }
         for (var cell of this.anatomy.cells) {
@@ -391,9 +395,17 @@ class Organism {
                 brain_direction = move_direction;
             }
             let dontmove = false;
-            if (this.role === "prey" && this.heardAlarm) {
-                this.move_range = 6; // fixed escape speed
-                this.changeDirection(Directions.getRandomDirection());
+            if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
+                this.move_range = 6;
+
+                let dx = this.c - this.alarmSource.c;
+                let dy = this.r - this.alarmSource.r;
+
+                let dir = Directions.fromVector(dx, dy); // you may need to implement this
+                this.changeDirection(dir);
+            }
+            if (this.role === "prey" && this.alarmTimer > 0) {
+                brain_decision = Decision.neutral; // override brain
             }
             switch (brain_decision) {
                 case Decision.neutral:
@@ -442,7 +454,14 @@ class Organism {
                     this.move_count++;
                 }
             }
+            if (this.alarmTimer === 0) {
+                this.move_range = 4; // default value
+            }
         }
+
+        // Reset heardAlarm after movement logic so it isn't wiped before being acted on
+        this.heardAlarm = false;
+
         return this.living;
     }
 

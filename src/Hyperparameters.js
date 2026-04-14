@@ -22,7 +22,7 @@ const Hyperparams = {
         this.moversCanProduce = false;
 
         this.instaKill = false;
-        this.dontKillSameSpecies = false;
+        this.dontKillSameSpecies = true;
 
         this.lookRange = 30;
         this.seeThroughSelf = false;

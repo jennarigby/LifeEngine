@@ -3,9 +3,7 @@ const Organism = require("./Organism");
 
 class CustomOrganismGenerator {
 
-    // =========================
     // CREATE PREY
-    // =========================
     static createPrey(env, col, row) {
         let org = new Organism(col, row, env);
 
@@ -23,9 +21,7 @@ class CustomOrganismGenerator {
         return org;
     }
 
-    // =========================
     // CREATE PREDATOR
-    // =========================
     static createPredator(env, col, row) {
         let org = new Organism(col, row, env);
 
@@ -46,9 +42,7 @@ class CustomOrganismGenerator {
         return org;
     }
 
-    // =========================
     // FIND VALID POSITION
-    // =========================
     static findValidPosition(env, maxAttempts = 50) {
         const width = env.grid_map.cols;
         const height = env.grid_map.rows;
@@ -77,32 +71,31 @@ class CustomOrganismGenerator {
         // Temporary species fix (prevents crashes)
         org.species = {
             name: org.role,
-            addPop: () => {},
-            decreasePop: () => {}
+            addPop: () => { },
+            decreasePop: () => { }
         };
 
         env.addOrganism(org);
         return true;
     }
 
-    // =========================
+
     // SPAWN POPULATION
-    // =========================
     static spawnPopulation(env, numPrey, numPredators) {
 
         let spawned = 0;
 
-        // Spawn prey
-        for (let i = 0; i < numPrey; i++) {
+        // Spawn prey in clusters 
+        let clusterSize = 5; // prey per cluster
+        let numClusters = Math.ceil(numPrey / clusterSize);
+
+        for (let i = 0; i < numClusters; i++) {
             let pos = this.findValidPosition(env);
             if (!pos) continue;
 
             let [c, r] = pos;
-            let prey = this.createPrey(env, c, r);
 
-            if (this.tryAddOrganism(env, prey, c, r)) {
-                spawned++;
-            }
+            spawned += this.spawnPreyCluster(env, c, r, clusterSize, 2);
         }
 
         // Spawn predators
@@ -119,6 +112,26 @@ class CustomOrganismGenerator {
         }
 
         console.log("Spawned organisms:", spawned);
+    }
+
+    static spawnPreyCluster(env, centerC, centerR, size = 5, spread = 2) {
+        let spawned = 0;
+
+        for (let i = 0; i < size; i++) {
+            let offsetC = Math.floor(Math.random() * (2 * spread + 1)) - spread;
+            let offsetR = Math.floor(Math.random() * (2 * spread + 1)) - spread;
+
+            let c = centerC + offsetC;
+            let r = centerR + offsetR;
+
+            let prey = this.createPrey(env, c, r);
+
+            if (this.tryAddOrganism(env, prey, c, r)) {
+                spawned++;
+            }
+        }
+
+        return spawned;
     }
 }
 
