@@ -28,6 +28,7 @@ class Organism {
             this.inherit(parent);
         }
         this.role = "prey"; // default
+        
 
         // Alarm system
         this.isCallingAlarm = false;
@@ -318,7 +319,8 @@ class Organism {
             if (cell == null) {
                 return false;
             }
-            if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)) {
+            if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)
+                || (this.role === "predator" && cell.owner && cell.owner.role === "prey")) {
                 continue;
             }
             return false;
@@ -370,7 +372,7 @@ class Organism {
         if (this.role === "prey") {
             let predatorNearby = this.detectPredator();
 
-            if (predatorNearby && this.alarmCooldown === 0) {
+            if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0) {
                 this.isCallingAlarm = true;
                 this.alarmCooldown = 10;
 
@@ -392,7 +394,38 @@ class Organism {
             if (!this.living)
                 return this.living
         }
+        // PREDATOR LOGIC
+        if (this.role === "predator") {
 
+            // 1. Prioritise alarm callers
+            let alarmTarget = this.detectAlarmCaller();
+
+            if (alarmTarget) {
+                let dx = alarmTarget.c - this.c;
+                let dy = alarmTarget.r - this.r;
+
+                let dir = Directions.fromVector(dx, dy);
+
+                console.log(`[PREDATOR][ALARM-CHASE] (${this.c}, ${this.r}) chasing alarm caller at (${alarmTarget.c}, ${alarmTarget.r})`);
+
+                this.changeDirection(dir);
+            }
+            else {
+                // 2. Otherwise chase any prey
+                let preyTarget = this.detectPrey();
+
+                if (preyTarget) {
+                    let dx = preyTarget.c - this.c;
+                    let dy = preyTarget.r - this.r;
+
+                    let dir = Directions.fromVector(dx, dy);
+
+                    console.log(`[PREDATOR][CHASE] (${this.c}, ${this.r}) chasing prey at (${preyTarget.c}, ${preyTarget.r})`);
+
+                    this.changeDirection(dir);
+                }
+            }
+        }
         if (this.anatomy.is_mover) {
             const Decision = Brain.Decision;
             let brain_decision = Decision.neutral;
@@ -465,6 +498,10 @@ class Organism {
                 else {
                     this.move_count++;
                 }
+
+                if (this.role === "predator") {
+                    this.checkForPreyCollision();
+                }
             }
             if (this.alarmTimer === 0) {
                 this.move_range = 4; // default value
@@ -519,6 +556,68 @@ class Organism {
             this.brain.copy(org.brain)
     }
 
+    //Method for predators to detect prey in a certain radius
+    detectPrey(radius = 10) {
+        let env = this.env;
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+
+                if (cell && cell.owner && cell.owner.role === "prey") {
+                    return cell.owner;
+                }
+            }
+        }
+        return null;
+    }
+
+    //For predators: detect alarm calls from prey and pursue that prey instead 
+    detectAlarmCaller(radius = 30) {
+        let env = this.env;
+
+        for (let org of env.organisms) {
+            if (org.role === "prey" && org.alarmTimer > 0) {
+                let dx = org.c - this.c;
+                let dy = org.r - this.r;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= radius) {
+                    return org;
+                }
+            }
+        }
+        return null;
+    }
+
+    checkForPreyCollision() {
+        for (let cell of this.anatomy.cells) {
+            let real_c = this.c + cell.rotatedCol(this.rotation);
+            let real_r = this.r + cell.rotatedRow(this.rotation);
+
+            let targetCell = this.env.grid_map.cellAt(real_c, real_r);
+
+            if (targetCell && targetCell.owner && targetCell.owner !== this) {
+                let other = targetCell.owner;
+
+                if (this.role === "predator" && other.role === "prey") {
+                    console.log(`[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${other.c}, ${other.r})`);
+
+                    // kill prey
+                    other.die();
+
+                    // reward predator
+                    this.food_collected += other.anatomy.cells.length;
+
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }
+
+
 
 module.exports = Organism;
