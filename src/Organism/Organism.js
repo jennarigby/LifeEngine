@@ -57,6 +57,7 @@ class Organism {
                 let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
 
                 if (cell && cell.owner && cell.owner.role === "predator") {
+                    console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
                     return true;
                 }
             }
@@ -78,6 +79,10 @@ class Organism {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
                 org.alarmTimer = 20; // lasts a few ticks
+
+                console.log(
+                    `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
+                );
             }
         }
     }
@@ -368,12 +373,15 @@ class Organism {
             if (predatorNearby && this.alarmCooldown === 0) {
                 this.isCallingAlarm = true;
                 this.alarmCooldown = 10;
+
+                console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) is broadcasting alarm`);
             } else {
                 this.isCallingAlarm = false;
             }
 
             if (this.isCallingAlarm) {
                 this.broadcastAlarm(30);
+                console.log(`[ALARM][BROADCAST] From (${this.c}, ${this.r}) radius=30`);
 
                 // cost of signalling — floor at 0 to prevent negative food
                 this.food_collected = Math.max(0, this.food_collected - 0.2);
@@ -401,7 +409,11 @@ class Organism {
                 let dx = this.c - this.alarmSource.c;
                 let dy = this.r - this.alarmSource.r;
 
-                let dir = Directions.fromVector(dx, dy); // you may need to implement this
+                let dir = Directions.fromVector(dx, dy);
+
+                console.log(
+                    `[ALARM][FLEE] Prey at (${this.c}, ${this.r}) fleeing from source (${this.alarmSource.c}, ${this.alarmSource.r}) dir=${dir}`
+                );
                 this.changeDirection(dir);
             }
             if (this.role === "prey" && this.alarmTimer > 0) {
