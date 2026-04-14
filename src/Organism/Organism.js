@@ -28,7 +28,7 @@ class Organism {
             this.inherit(parent);
         }
         this.role = "prey"; // default
-        
+
 
         // Alarm system
         this.isCallingAlarm = false;
@@ -36,6 +36,11 @@ class Organism {
         this.alarmCooldown = 0;
         this.alarmTimer = 0;
         this.alarmSource = null;
+
+        // Predator targeting
+        this.target = null;
+        this.targetType = null;
+        this.targetTimer = 0;
     }
 
     inherit(parent) {
@@ -354,21 +359,21 @@ class Organism {
     }
 
     update() {
-        if (this.alarmCooldown > 0) {
-            this.alarmCooldown--;
-        }
-        if (this.alarmTimer > 0) {
-            this.alarmTimer--;
-        }
+        if (this.alarmCooldown > 0) this.alarmCooldown--;
+        if (this.alarmTimer > 0) this.alarmTimer--;
+
         this.lifetime++;
+
         if (this.lifetime > this.lifespan()) {
             this.die();
             return this.living;
         }
+
         if (this.food_collected >= this.foodNeeded()) {
             this.reproduce();
         }
-        // Alarm logic (ONLY for prey)
+
+        // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
             let predatorNearby = this.detectPredator();
 
@@ -376,141 +381,145 @@ class Organism {
                 this.isCallingAlarm = true;
                 this.alarmCooldown = 10;
 
-                console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) is broadcasting alarm`);
+                console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm`);
             } else {
                 this.isCallingAlarm = false;
             }
 
             if (this.isCallingAlarm) {
                 this.broadcastAlarm(30);
-                console.log(`[ALARM][BROADCAST] From (${this.c}, ${this.r}) radius=30`);
-
-                // cost of signalling — floor at 0 to prevent negative food
                 this.food_collected = Math.max(0, this.food_collected - 0.2);
             }
+
+            if (this.isCallingAlarm) {
+                this.alarmMovePenalty = true;
+            } else {
+                this.alarmMovePenalty = false;
+            }
         }
+
+
+        // 2. EXECUTE CELL BEHAVIOUR
         for (var cell of this.anatomy.cells) {
             cell.performFunction();
-            if (!this.living)
-                return this.living
+            if (!this.living) return this.living;
         }
-        // PREDATOR LOGIC
-        if (this.role === "predator") {
 
-            // 1. Prioritise alarm callers
-            let alarmTarget = this.detectAlarmCaller();
+        // 3. MOVEMENT DECISION 
+        let dontmove = false;
 
-            if (alarmTarget) {
-                let dx = alarmTarget.c - this.c;
-                let dy = alarmTarget.r - this.r;
-
-                let dir = Directions.fromVector(dx, dy);
-
-                console.log(`[PREDATOR][ALARM-CHASE] (${this.c}, ${this.r}) chasing alarm caller at (${alarmTarget.c}, ${alarmTarget.r})`);
-
-                this.changeDirection(dir);
-            }
-            else {
-                // 2. Otherwise chase any prey
-                let preyTarget = this.detectPrey();
-
-                if (preyTarget) {
-                    let dx = preyTarget.c - this.c;
-                    let dy = preyTarget.r - this.r;
-
-                    let dir = Directions.fromVector(dx, dy);
-
-                    console.log(`[PREDATOR][CHASE] (${this.c}, ${this.r}) chasing prey at (${preyTarget.c}, ${preyTarget.r})`);
-
-                    this.changeDirection(dir);
-                }
-            }
-        }
         if (this.anatomy.is_mover) {
-            const Decision = Brain.Decision;
-            let brain_decision = Decision.neutral;
-            let brain_direction = 0;
-            if (this.anatomy.has_eyes) {
-                let { decision, move_direction } = this.brain.decide();
-                brain_decision = decision;
-                brain_direction = move_direction;
-            }
-            let dontmove = false;
-            if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
-                this.move_range = 6;
+            if (this.anatomy.is_mover) {
 
-                let dx = this.c - this.alarmSource.c;
-                let dy = this.r - this.alarmSource.r;
+                const Decision = Brain.Decision;
 
-                let dir = Directions.fromVector(dx, dy);
+                let brain_decision = Decision.neutral;
+                let brain_direction = 0;
 
-                console.log(
-                    `[ALARM][FLEE] Prey at (${this.c}, ${this.r}) fleeing from source (${this.alarmSource.c}, ${this.alarmSource.r}) dir=${dir}`
-                );
-                this.changeDirection(dir);
-            }
-            if (this.role === "prey" && this.alarmTimer > 0) {
-                brain_decision = Decision.neutral; // override brain
-            }
-            switch (brain_decision) {
-                case Decision.neutral:
-                    // move move_range times, then randomly rotate/change direction
-                    if (this.move_count > this.move_range) {
-                        this.attemptRotate();
-                        this.changeDirection(Directions.getRandomDirection());
-                        this.move_count = 0;
+         
+                // 1. PREDATOR OVERRIDE 
+                if (this.role === "predator") {
+
+                    // acquire / maintain target
+                    if (this.target && this.target.living && this.targetTimer > 0) {
+                        this.targetTimer--;
+                    } else {
+                        let alarmTarget = this.detectAlarmCaller();
+                        let preyTarget = this.detectPrey();
+
+                        this.target = alarmTarget || preyTarget;
+                        this.targetType = alarmTarget ? "alarm" : (preyTarget ? "prey" : null);
+                        this.targetTimer = this.target ? 50 : 0;
                     }
-                    break;
-                case Decision.chase:
-                    this.changeDirection(brain_direction);
-                    break;
-                case Decision.retreat:
-                    this.changeDirection(Directions.getOppositeDirection(brain_direction));
-                    break;
-                case Decision.move_left:
-                    this.changeDirection(Directions.getLeftDirection(brain_direction));
-                    break;
-                case Decision.move_right:
-                    this.changeDirection(Directions.getRightDirection(brain_direction));
-                    break;
-                case Decision.turn_left:
-                    // rotate left based on current rotation, brain direction irrelavent
-                    this.attemptRotate(Directions.getLeftDirection(this.rotation));
-                    dontmove = true;
-                    break;
-                case Decision.turn_right:
-                    this.attemptRotate(Directions.getRightDirection(this.rotation));
-                    dontmove = true;
-                    break;
-                case Decision.stop:
-                    dontmove = true;
-                    break;
-            }
-            if (!dontmove) {
+
+                    // CHASE ONLY 
+                    if (this.target) {
+
+                        let dx = this.target.c - this.c;
+                        let dy = this.target.r - this.r;
+
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            this.changeDirection(dx > 0 ? Directions.right : Directions.left);
+                        } else {
+                            this.changeDirection(dy > 0 ? Directions.down : Directions.up);
+                        }
+
+                        console.log(
+                            `[PREDATOR][CHASE] (${this.c}, ${this.r}) -> ${this.targetType} (${this.target.c}, ${this.target.r})`
+                        );
+                    }
+
+                    // skip all brain logic for predators
+                    brain_decision = Decision.neutral;
+                }
+
+                // 2. PREY BRAIN (ONLY PREY)
+                if (this.role === "prey" && this.anatomy.has_eyes) {
+                    let result = this.brain.decide();
+                    brain_decision = result.decision;
+                    brain_direction = result.move_direction;
+                }
+
+                // 3. PREY ALARM OVERRIDE
+                if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
+                    let dx = this.c - this.alarmSource.c;
+                    let dy = this.r - this.alarmSource.r;
+
+                    this.changeDirection(Directions.fromVector(dx, dy));
+                    brain_decision = Decision.neutral;
+                }
+
+                // 4. BRAIN DECISION (ONLY PREY )
+                switch (brain_decision) {
+                    case Decision.chase:
+                        this.changeDirection(brain_direction);
+                        break;
+
+                    case Decision.retreat:
+                        this.changeDirection(Directions.getOppositeDirection(brain_direction));
+                        break;
+
+                    case Decision.move_left:
+                        this.changeDirection(Directions.getLeftDirection(brain_direction));
+                        break;
+
+                    case Decision.move_right:
+                        this.changeDirection(Directions.getRightDirection(brain_direction));
+                        break;
+
+                    case Decision.turn_left:
+                        this.attemptRotate(Directions.getLeftDirection(this.rotation));
+                        return this.living;
+
+                    case Decision.turn_right:
+                        this.attemptRotate(Directions.getRightDirection(this.rotation));
+                        return this.living;
+
+                    case Decision.stop:
+                        return this.living;
+                }
+
+               
+                // 5. MOVE 
                 let moved = this.attemptMove();
+
                 if (!moved) {
-                    // if stuck, try to rotate or change direction
                     let rotated = this.attemptRotate();
                     if (!rotated) {
                         this.changeDirection(Directions.getRandomDirection());
                     }
-                }
-                else {
+                } else {
                     this.move_count++;
                 }
 
+                // collision
                 if (this.role === "predator") {
                     this.checkForPreyCollision();
                 }
             }
-            if (this.alarmTimer === 0) {
-                this.move_range = 4; // default value
-            }
         }
 
-        // Reset heardAlarm after movement logic so it isn't wiped before being acted on
         this.heardAlarm = false;
-
         return this.living;
     }
 
@@ -591,26 +600,23 @@ class Organism {
     }
 
     checkForPreyCollision() {
-        for (let cell of this.anatomy.cells) {
-            let real_c = this.c + cell.rotatedCol(this.rotation);
-            let real_r = this.r + cell.rotatedRow(this.rotation);
+        for (let org of this.env.organisms) {
+            if (!org || org === this) continue;
 
-            let targetCell = this.env.grid_map.cellAt(real_c, real_r);
+            if (org.role !== "prey" || !org.living) continue;
 
-            if (targetCell && targetCell.owner && targetCell.owner !== this) {
-                let other = targetCell.owner;
+            // simple bounding overlap (same grid position check)
+            if (org.c === this.c && org.r === this.r) {
 
-                if (this.role === "predator" && other.role === "prey") {
-                    console.log(`[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${other.c}, ${other.r})`);
+                console.log(
+                    `[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${org.c}, ${org.r})`
+                );
 
-                    // kill prey
-                    other.die();
+                org.die();
 
-                    // reward predator
-                    this.food_collected += other.anatomy.cells.length;
+                this.food_collected += org.anatomy.cells.length;
 
-                    return true;
-                }
+                return true;
             }
         }
         return false;
