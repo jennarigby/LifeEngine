@@ -27,7 +27,11 @@ class Organism {
         if (parent != null) {
             this.inherit(parent);
         }
-        this.role = "prey"; // default
+        if (parent != null) {
+            this.inherit(parent);
+        } else {
+            this.role = "prey"; // only set default if no parent
+        }
 
 
         // Alarm system
@@ -416,7 +420,7 @@ class Organism {
                 let brain_decision = Decision.neutral;
                 let brain_direction = 0;
 
-         
+
                 // 1. PREDATOR OVERRIDE 
                 if (this.role === "predator") {
 
@@ -499,7 +503,7 @@ class Organism {
                         return this.living;
                 }
 
-               
+
                 // 5. MOVE 
                 let moved = this.attemptMove();
 
@@ -601,21 +605,17 @@ class Organism {
 
     checkForPreyCollision() {
         for (let org of this.env.organisms) {
-            if (!org || org === this) continue;
+            if (!org || org === this || org.role !== "prey" || !org.living) continue;
 
-            if (org.role !== "prey" || !org.living) continue;
+            let dx = Math.abs(org.c - this.c);
+            let dy = Math.abs(org.r - this.r);
 
-            // simple bounding overlap (same grid position check)
-            if (org.c === this.c && org.r === this.r) {
+            //console.log(`[COLLISION_CHECK] Predator (${this.c},${this.r}) vs Prey (${org.c},${org.r}) dx=${dx} dy=${dy}`);
 
-                console.log(
-                    `[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${org.c}, ${org.r})`
-                );
-
+            if (dx <= 1 && dy <= 1) {
+                console.log(`[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${org.c}, ${org.r})`);
                 org.die();
-
                 this.food_collected += org.anatomy.cells.length;
-
                 return true;
             }
         }
