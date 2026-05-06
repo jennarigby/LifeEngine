@@ -323,16 +323,45 @@ class Organism {
         return cell != null && (cell.state == CellStates.empty || cell.owner == this || cell.owner == parent || cell.state == CellStates.food);
     }
 
-    isClear(col, row, rotation = this.rotation) {
+    // isClear(col, row, rotation = this.rotation) {
+    //     for (var loccell of this.anatomy.cells) {
+    //         var cell = this.getRealCell(loccell, col, row, rotation);
+    //         if (cell == null) {
+    //             return false;
+    //         }
+    //         if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)
+    //             || (this.role === "predator" && cell.owner && cell.owner.role === "prey")) {
+    //             continue;
+    //         }
+    //         return false;
+    //     }
+    //     return true;
+    // }
+
+    //Updated version of isClear to allow predators to move onto food 
+    isClear(col, row, rotation = this.rotation, forReproduction = false) {
         for (var loccell of this.anatomy.cells) {
             var cell = this.getRealCell(loccell, col, row, rotation);
             if (cell == null) {
                 return false;
             }
-            if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)
-                || (this.role === "predator" && cell.owner && cell.owner.role === "prey")) {
+
+            // Always allow empty + self
+            if (cell.owner == this || cell.state == CellStates.empty) {
                 continue;
             }
+
+            // Allow predators to overlap prey (for killing)
+            if (this.role === "predator" && cell.owner && cell.owner.role === "prey") {
+                continue;
+            }
+
+            // Movement: allow food
+            if (!forReproduction && cell.state == CellStates.food) {
+                continue;
+            }
+
+            // Otherwise blocked
             return false;
         }
         return true;
@@ -452,6 +481,11 @@ class Organism {
                         console.log(
                             `[PREDATOR][CHASE] (${this.c}, ${this.r}) -> ${this.targetType} (${this.target.c}, ${this.target.r})`
                         );
+                    } else {
+                        // If there is no prey target, then actively search
+                        if (Math.random() < 0.2) { // occasionally change direction
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
                     }
 
                     // skip all brain logic for predators
@@ -614,9 +648,11 @@ class Organism {
             //console.log(`[COLLISION_CHECK] Predator (${this.c},${this.r}) vs Prey (${org.c},${org.r}) dx=${dx} dy=${dy}`);
 
             if (dx <= 1 && dy <= 1) {
-                console.log(`[PREDATOR][KILL] Predator at (${this.c}, ${this.r}) killed prey at (${org.c}, ${org.r})`);
-                org.die();
-                this.food_collected += org.anatomy.cells.length;
+                console.log(`[PREDATOR][ATTACK] Predator at (${this.c}, ${this.r}) attacked prey at (${org.c}, ${org.r})`);
+                org.harm();
+                if (!org.living) {
+                    this.food_collected += org.anatomy.cells.length;
+                }
                 return true;
             }
         }
