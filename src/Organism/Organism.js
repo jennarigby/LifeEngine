@@ -103,7 +103,8 @@ class Organism {
     }
 
     lifespan() {
-        return this.anatomy.cells.length * Hyperparams.lifespanMultiplier;
+        const multiplier = this.role === "predator" ? Hyperparams.predatorLifespanMultiplier : 1;
+        return this.anatomy.cells.length * Hyperparams.lifespanMultiplier * multiplier;
     }
 
     maxHealth() {

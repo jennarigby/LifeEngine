@@ -89,7 +89,8 @@ class WorldEnvironment extends Environment {
     }
 
     OriginOfLife() {
-        CustomOrganismGenerator.spawnPopulation(this, 5, 5);
+        //Spawn initial organisms (custom amount)
+        CustomOrganismGenerator.spawnPopulation(this, 50, 5);
         // Register species
         for (let org of this.organisms) {
             FossilRecord.addSpecies(org, null);
