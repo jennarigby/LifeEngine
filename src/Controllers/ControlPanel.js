@@ -342,6 +342,9 @@ class ControlPanel {
         $('#lifespan-multiplier').change(function() {
             Hyperparams.lifespanMultiplier = $('#lifespan-multiplier').val();
         }.bind(this));
+        $('#predator-reproduction-multiplier').change(function() {
+            Hyperparams.predatorReproductionMultiplier = parseFloat($('#predator-reproduction-multiplier').val());
+        }.bind(this));
 
         $('#rot-enabled').change(function() {
             Hyperparams.rotationEnabled = this.checked;
@@ -455,6 +458,7 @@ class ControlPanel {
     updateHyperparamUIValues(){
         $('#food-prod-prob').val(Hyperparams.foodProdProb);
         $('#lifespan-multiplier').val(Hyperparams.lifespanMultiplier);
+        $('#predator-reproduction-multiplier').val(Hyperparams.predatorReproductionMultiplier);
         $('#rot-enabled').prop('checked', Hyperparams.rotationEnabled);
         $('#insta-kill').prop('checked', Hyperparams.instaKill);
         $('#evolved-mutation').prop('checked', !Hyperparams.useGlobalMutability);

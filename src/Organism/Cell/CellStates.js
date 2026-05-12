@@ -91,8 +91,12 @@ const CellStates = {
     getRandomName: function() {
         return this.all[Math.floor(Math.random() * this.all.length)].name;
     },
-    getRandomLivingType: function() {
-        return this.living[Math.floor(Math.random() * this.living.length)];
+    getRandomLivingType: function(role) {
+        let options = this.living;
+        if (role === 'prey') {
+            options = options.filter(state => state !== this.killer);
+        }
+        return options[Math.floor(Math.random() * options.length)];
     }
 }
 

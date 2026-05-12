@@ -9,13 +9,13 @@ class CustomOrganismGenerator {
 
         org.role = "prey";
 
-        // Core body (MUST exist)
+        // Core body 
         org.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
 
-        // Movement (MUST exist)
+        // Movement 
         org.anatomy.addDefaultCell(CellStates.mover, 1, 0);
 
-        // Optional features (safe to randomize)
+        // Optional features
         org.anatomy.addRandomizedCell(CellStates.eye, 0, 1);
 
         return org;
@@ -89,18 +89,17 @@ class CustomOrganismGenerator {
         const baseC = Math.floor(width / 2);
         const baseR = Math.floor(height / 2);
 
-        // Spawn prey in deterministic clusters around center
-        let clusterSize = 5; // prey per cluster
-        let numClusters = Math.ceil(numPrey / clusterSize);
-        let angleStep = (2 * Math.PI) / Math.max(numClusters, 1);
-
-        for (let i = 0; i < numClusters; i++) {
-            let angle = i * angleStep;
-            let radius = 6 + Math.floor(i / 3) * 2;
-            let c = baseC + Math.round(Math.cos(angle) * radius);
-            let r = baseR + Math.round(Math.sin(angle) * radius);
-
-            spawned += this.spawnPreyCluster(env, c, r, clusterSize);
+        // Spawn prey at deterministic grid positions
+        let gridSpacing = 10; // space between prey
+        let preyIndex = 0;
+        for (let c = gridSpacing; c < width && preyIndex < numPrey; c += gridSpacing) {
+            for (let r = gridSpacing; r < height && preyIndex < numPrey; r += gridSpacing) {
+                let prey = this.createPrey(env, c, r);
+                if (this.tryAddOrganism(env, prey, c, r)) {
+                    spawned++;
+                    preyIndex++;
+                }
+            }
         }
 
         // Spawn predators at fixed positions relative to center
@@ -133,39 +132,6 @@ class CustomOrganismGenerator {
         }
 
         console.log("Spawned organisms:", spawned);
-    }
-
-    static spawnPreyCluster(env, centerC, centerR, size = 5) {
-        let spawned = 0;
-        const offsets = [
-            [0, 0],
-            [1, 0],
-            [-1, 0],
-            [0, 1],
-            [0, -1],
-            [2, 0],
-            [-2, 0],
-            [0, 2],
-            [0, -2],
-            [1, 1],
-            [-1, -1],
-            [1, -1],
-            [-1, 1]
-        ];
-
-        for (let i = 0; i < size && i < offsets.length; i++) {
-            let [offsetC, offsetR] = offsets[i];
-            let c = centerC + offsetC;
-            let r = centerR + offsetR;
-
-            let prey = this.createPrey(env, c, r);
-
-            if (this.tryAddOrganism(env, prey, c, r)) {
-                spawned++;
-            }
-        }
-
-        return spawned;
     }
 }
 

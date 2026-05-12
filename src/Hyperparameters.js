@@ -4,6 +4,7 @@ const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 100;
         this.predatorLifespanMultiplier = 1;
+        this.predatorReproductionMultiplier = 2.0;
         this.foodProdProb = 0;
         this.killableNeighbors = Neighbors.adjacent;
         this.edibleNeighbors = Neighbors.adjacent;
@@ -23,14 +24,14 @@ const Hyperparams = {
         this.moversCanProduce = false;
 
         this.instaKill = false;
-        this.dontKillSameSpecies = true;
+        this.dontKillSameSpecies = false;
 
         this.lookRange = 30;
         this.seeThroughSelf = false;
-        this.alarmSignallingEnabled = true;
+        this.alarmSignallingEnabled = false;
         this.evolveIndependentEyeDecisions = true;
 
-        this.foodDropProb = 10;
+        this.foodDropProb = 15;
 
         this.extraMoverFoodCost = 0;
 

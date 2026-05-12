@@ -99,7 +99,9 @@ class Organism {
 
     // amount of food required before it can reproduce
     foodNeeded() {
-        return this.anatomy.is_mover ? this.anatomy.cells.length + Hyperparams.extraMoverFoodCost : this.anatomy.cells.length;
+        let base = this.anatomy.is_mover ? this.anatomy.cells.length + Hyperparams.extraMoverFoodCost : this.anatomy.cells.length;
+        const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
+        return base * multiplier;
     }
 
     lifespan() {
@@ -168,7 +170,7 @@ class Organism {
         let removed = false;
         if (this.calcRandomChance(Hyperparams.addProb)) {
             let branch = this.anatomy.getRandomCell();
-            let state = CellStates.getRandomLivingType(); // branch.state;
+            let state = CellStates.getRandomLivingType(this.role); // branch.state;
             let growth_direction = Neighbors.all[Math.floor(Math.random() * Neighbors.all.length)];
             let c = branch.loc_col + growth_direction[0];
             let r = branch.loc_row + growth_direction[1];
@@ -211,7 +213,7 @@ class Organism {
         }
         if (this.calcRandomChance(Hyperparams.changeProb)) {
             let cell = this.anatomy.getRandomCell();
-            let state = CellStates.getRandomLivingType();
+            let state = CellStates.getRandomLivingType(this.role);
             this.anatomy.replaceCell(state, cell.loc_col, cell.loc_row);
             changed = true;
         }
