@@ -84,43 +84,77 @@ class CustomOrganismGenerator {
     static spawnPopulation(env, numPrey, numPredators) {
 
         let spawned = 0;
+        const width = env.grid_map.cols;
+        const height = env.grid_map.rows;
+        const baseC = Math.floor(width / 2);
+        const baseR = Math.floor(height / 2);
 
-        // Spawn prey in clusters 
+        // Spawn prey in deterministic clusters around center
         let clusterSize = 5; // prey per cluster
         let numClusters = Math.ceil(numPrey / clusterSize);
+        let angleStep = (2 * Math.PI) / Math.max(numClusters, 1);
 
         for (let i = 0; i < numClusters; i++) {
-            let pos = this.findValidPosition(env);
-            if (!pos) continue;
+            let angle = i * angleStep;
+            let radius = 6 + Math.floor(i / 3) * 2;
+            let c = baseC + Math.round(Math.cos(angle) * radius);
+            let r = baseR + Math.round(Math.sin(angle) * radius);
 
-            let [c, r] = pos;
-
-            spawned += this.spawnPreyCluster(env, c, r, clusterSize, 2);
+            spawned += this.spawnPreyCluster(env, c, r, clusterSize);
         }
 
-        // Spawn predators
-        for (let i = 0; i < numPredators; i++) {
-            let pos = this.findValidPosition(env);
-            if (!pos) continue;
+        // Spawn predators at fixed positions relative to center
+        const predatorPositions = [
+            [baseC, baseR - 6],
+            [baseC - 5, baseR],
+            [baseC + 5, baseR],
+            [baseC - 4, baseR + 4],
+            [baseC + 4, baseR + 4]
+        ];
 
-            let [c, r] = pos;
+        for (let i = 0; i < numPredators; i++) {
+            let [c, r] = predatorPositions[i] || [baseC + 6 + i, baseR];
             let predator = this.createPredator(env, c, r);
 
             if (this.tryAddOrganism(env, predator, c, r)) {
                 spawned++;
+                continue;
+            }
+
+            // Fallback deterministic scan if the target spot is occupied
+            let fallback = this.findValidPosition(env, 200);
+            if (fallback) {
+                let [fc, fr] = fallback;
+                let predator2 = this.createPredator(env, fc, fr);
+                if (this.tryAddOrganism(env, predator2, fc, fr)) {
+                    spawned++;
+                }
             }
         }
 
         console.log("Spawned organisms:", spawned);
     }
 
-    static spawnPreyCluster(env, centerC, centerR, size = 5, spread = 2) {
+    static spawnPreyCluster(env, centerC, centerR, size = 5) {
         let spawned = 0;
+        const offsets = [
+            [0, 0],
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+            [2, 0],
+            [-2, 0],
+            [0, 2],
+            [0, -2],
+            [1, 1],
+            [-1, -1],
+            [1, -1],
+            [-1, 1]
+        ];
 
-        for (let i = 0; i < size; i++) {
-            let offsetC = Math.floor(Math.random() * (2 * spread + 1)) - spread;
-            let offsetR = Math.floor(Math.random() * (2 * spread + 1)) - spread;
-
+        for (let i = 0; i < size && i < offsets.length; i++) {
+            let [offsetC, offsetR] = offsets[i];
             let c = centerC + offsetC;
             let r = centerR + offsetR;
 

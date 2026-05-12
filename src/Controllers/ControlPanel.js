@@ -355,6 +355,9 @@ class ControlPanel {
         $('#see-through-self').change(function() {
             Hyperparams.seeThroughSelf = this.checked;
         });
+        $('#alarm-signalling').change(function() {
+            Hyperparams.alarmSignallingEnabled = this.checked;
+        });
         $('#independent-eye-decisions').change(function() {
             Hyperparams.evolveIndependentEyeDecisions = this.checked;
         });
@@ -468,6 +471,7 @@ class ControlPanel {
         $('#org-limit').val(Hyperparams.maxOrganisms);
         $('#look-range').val(Hyperparams.lookRange);
         $('#see-through-self').prop('checked', Hyperparams.seeThroughSelf);
+        $('#alarm-signalling').prop('checked', Hyperparams.alarmSignallingEnabled);
         $('#global-mutation').val(Hyperparams.globalMutability);
         $('#independent-eye-decisions').prop('checked', Hyperparams.evolveIndependentEyeDecisions);
         

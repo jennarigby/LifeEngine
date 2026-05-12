@@ -27,9 +27,10 @@ const Hyperparams = {
 
         this.lookRange = 30;
         this.seeThroughSelf = false;
+        this.alarmSignallingEnabled = true;
         this.evolveIndependentEyeDecisions = true;
 
-        this.foodDropProb = 5;
+        this.foodDropProb = 10;
 
         this.extraMoverFoodCost = 0;
 

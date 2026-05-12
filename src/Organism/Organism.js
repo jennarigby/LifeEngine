@@ -409,25 +409,32 @@ class Organism {
 
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
-            let predatorNearby = this.detectPredator();
+            if (Hyperparams.alarmSignallingEnabled) {
+                let predatorNearby = this.detectPredator();
 
-            if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0) {
-                this.isCallingAlarm = true;
-                this.alarmCooldown = 10;
+                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0) {
+                    this.isCallingAlarm = true;
+                    this.alarmCooldown = 10;
 
-                console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm`);
+                    console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm`);
+                } else {
+                    this.isCallingAlarm = false;
+                }
+
+                if (this.isCallingAlarm) {
+                    this.broadcastAlarm(30);
+                    this.food_collected = Math.max(0, this.food_collected - 0.2);
+                }
+
+                if (this.isCallingAlarm) {
+                    this.alarmMovePenalty = true;
+                } else {
+                    this.alarmMovePenalty = false;
+                }
             } else {
                 this.isCallingAlarm = false;
-            }
-
-            if (this.isCallingAlarm) {
-                this.broadcastAlarm(30);
-                this.food_collected = Math.max(0, this.food_collected - 0.2);
-            }
-
-            if (this.isCallingAlarm) {
-                this.alarmMovePenalty = true;
-            } else {
+                this.alarmTimer = 0;
+                this.alarmSource = null;
                 this.alarmMovePenalty = false;
             }
         }
@@ -458,7 +465,7 @@ class Organism {
                     if (this.target && this.target.living && this.targetTimer > 0) {
                         this.targetTimer--;
                     } else {
-                        let alarmTarget = this.detectAlarmCaller();
+                        let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
                         let preyTarget = this.detectPrey();
 
                         this.target = alarmTarget || preyTarget;
@@ -622,6 +629,8 @@ class Organism {
 
     //For predators: detect alarm calls from prey and pursue that prey instead 
     detectAlarmCaller(radius = 30) {
+        if (!Hyperparams.alarmSignallingEnabled) return null;
+
         let env = this.env;
 
         for (let org of env.organisms) {
