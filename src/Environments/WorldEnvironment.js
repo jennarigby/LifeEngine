@@ -36,7 +36,7 @@ class WorldEnvironment extends Environment {
             let preds = this.organisms.filter(o => o.role === "predator");
             let prey = this.organisms.filter(o => o.role === "prey");
             console.log(`[ROLES] predators=${preds.length}, prey=${prey.length}`);
-            preds.forEach(p => console.log(`  predator at (${p.c},${p.r}) food=${p.food_collected}/${p.foodNeeded()} lifetime=${p.lifetime}/${p.lifespan()}`));
+            preds.forEach(p => console.log(`  predator at (${p.c},${p.r}) cells=${p.anatomy.cells.length} food=${p.food_collected}/${p.foodNeeded()} lifetime=${p.lifetime}/${p.lifespan()}`));
         }
         var to_remove = [];
         for (var i in this.organisms) {
@@ -152,13 +152,40 @@ class WorldEnvironment extends Environment {
     generateFood() {
         var num_food = Math.max(Math.floor(this.grid_map.cols * this.grid_map.rows * Hyperparams.foodDropProb / 50000), 1)
         var prob = Hyperparams.foodDropProb;
+        
+        // Define corner regions (each corner gets 1/4 of the map area)
+        var cornerSize = Math.floor(Math.min(this.grid_map.cols, this.grid_map.rows) / 4);
+        var regions = [
+            {cMin: 0, cMax: cornerSize, rMin: 0, rMax: cornerSize}, // top-left
+            {cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: 0, rMax: cornerSize}, // top-right
+            {cMin: 0, cMax: cornerSize, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows}, // bottom-left
+            {cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows}, // bottom-right
+            {
+                cMin: Math.floor(this.grid_map.cols * 0.4),
+                cMax: Math.ceil(this.grid_map.cols * 0.6),
+                rMin: Math.floor(this.grid_map.rows * 0.4),
+                rMax: Math.ceil(this.grid_map.rows * 0.6),
+                center: true
+            }
+        ];
+        
         for (var i = 0; i < num_food; i++) {
             if (Math.random() <= prob) {
-                var c = Math.floor(Math.random() * this.grid_map.cols);
-                var r = Math.floor(Math.random() * this.grid_map.rows);
-
-                if (this.grid_map.cellAt(c, r).state == CellStates.empty) {
-                    this.changeCell(c, r, CellStates.food, null);
+                var region = regions[Math.floor(Math.random() * regions.length)];
+                var clusterSize = region.center ? 7 : 5;
+                var spread = region.center ? 4 : 3;
+                var baseC = Math.floor(Math.random() * (region.cMax - region.cMin)) + region.cMin;
+                var baseR = Math.floor(Math.random() * (region.rMax - region.rMin)) + region.rMin;
+                
+                for (var j = 0; j < clusterSize; j++) {
+                    var offsetC = Math.floor(Math.random() * (spread * 2 + 1)) - spread;
+                    var offsetR = Math.floor(Math.random() * (spread * 2 + 1)) - spread;
+                    var c = Math.max(0, Math.min(this.grid_map.cols - 1, baseC + offsetC));
+                    var r = Math.max(0, Math.min(this.grid_map.rows - 1, baseR + offsetR));
+                    
+                    if (this.grid_map.cellAt(c, r).state == CellStates.empty) {
+                        this.changeCell(c, r, CellStates.food, null);
+                    }
                 }
             }
         }

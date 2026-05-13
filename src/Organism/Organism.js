@@ -33,6 +33,10 @@ class Organism {
             this.role = "prey"; // only set default if no parent
         }
 
+        if (this.role === "predator") {
+            this.food_collected = Hyperparams.predatorStartingFood;
+        }
+
 
         // Alarm system
         this.isCallingAlarm = false;
@@ -59,7 +63,7 @@ class Organism {
         this.role = parent.role;
     }
 
-    detectPredator(radius = 10) {
+    detectPredator(radius = 15) {
         let env = this.env;
 
         for (let dx = -radius; dx <= radius; dx++) {
@@ -560,10 +564,6 @@ class Organism {
                     this.move_count++;
                 }
 
-                // collision
-                if (this.role === "predator") {
-                    this.checkForPreyCollision();
-                }
             }
         }
 
@@ -630,12 +630,19 @@ class Organism {
     }
 
     //For predators: detect alarm calls from prey and pursue that prey instead 
-    detectAlarmCaller(radius = 30) {
+    detectAlarmCaller(radius = 20) {
         if (!Hyperparams.alarmSignallingEnabled) return null;
 
         let env = this.env;
 
         for (let org of env.organisms) {
+            if (this.role === "predator") {
+                this.food_collected -= Hyperparams.predatorDecayRate * this.anatomy.cells.length;
+                if (this.food_collected < 0) {
+                    this.die();
+                    return this.living;
+                }
+            }
             if (org.role === "prey" && org.alarmTimer > 0) {
                 let dx = org.c - this.c;
                 let dy = org.r - this.r;

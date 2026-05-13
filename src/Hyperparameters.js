@@ -4,7 +4,9 @@ const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 100;
         this.predatorLifespanMultiplier = 1;
-        this.predatorReproductionMultiplier = 2.0;
+        this.predatorReproductionMultiplier = 5.5;
+        this.predatorDecayRate = 0.45;
+        this.predatorStartingFood = 100;
         this.foodProdProb = 0;
         this.killableNeighbors = Neighbors.adjacent;
         this.edibleNeighbors = Neighbors.adjacent;
