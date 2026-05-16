@@ -75,6 +75,27 @@ class Renderer {
         
     }
 
+    renderSafeZone(zoneOrZones) {
+        if (!zoneOrZones) return;
+        const zones = Array.isArray(zoneOrZones) ? zoneOrZones : [zoneOrZones];
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 180, 0, 0.12)';
+        this.ctx.strokeStyle = 'rgba(0, 140, 0, 0.35)';
+        this.ctx.lineWidth = Math.max(1, this.cell_size * 0.12);
+
+        for (const zone of zones) {
+            if (!zone) continue;
+            const x = zone.cMin * this.cell_size;
+            const y = zone.rMin * this.cell_size;
+            const width = (zone.cMax - zone.cMin) * this.cell_size;
+            const height = (zone.rMax - zone.rMin) * this.cell_size;
+            this.ctx.fillRect(x, y, width, height);
+            this.ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+        }
+
+        this.ctx.restore();
+    }
+
     highlightOrganism(org) {
         for(var org_cell of org.anatomy.cells) {
             var cell = org.getRealCell(org_cell);

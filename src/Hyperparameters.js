@@ -3,10 +3,11 @@ const Neighbors = require("./Grid/Neighbors");
 const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 100;
-        this.predatorLifespanMultiplier = 1;
-        this.predatorReproductionMultiplier = 5.5;
-        this.predatorDecayRate = 0.45;
+        this.predatorLifespanMultiplier = 3.5;
+        this.predatorReproductionMultiplier = 20;
+        this.predatorDecayRate = 1.8;
         this.predatorStartingFood = 100;
+
         this.foodProdProb = 0;
         this.killableNeighbors = Neighbors.adjacent;
         this.edibleNeighbors = Neighbors.adjacent;
@@ -33,7 +34,7 @@ const Hyperparams = {
         this.alarmSignallingEnabled = false;
         this.evolveIndependentEyeDecisions = true;
 
-        this.foodDropProb = 15;
+        this.foodDropProb = 7;
 
         this.extraMoverFoodCost = 0;
 

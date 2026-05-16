@@ -326,7 +326,9 @@ class Organism {
     }
 
     isPassableCell(cell, parent) {
-        return cell != null && (cell.state == CellStates.empty || cell.owner == this || cell.owner == parent || cell.state == CellStates.food);
+        if (cell == null) return false;
+        if (this.role === "predator" && this.env.isInSafeZone(cell.col, cell.row)) return false;
+        return cell.state == CellStates.empty || cell.owner == this || cell.owner == parent || cell.state == CellStates.food;
     }
 
     // isClear(col, row, rotation = this.rotation) {
@@ -352,6 +354,10 @@ class Organism {
                 return false;
             }
 
+            if (this.role === "predator" && this.env.isInSafeZone(cell.col, cell.row)) {
+                return false;
+            }
+
             // Always allow empty + self
             if (cell.owner == this || cell.state == CellStates.empty) {
                 continue;
@@ -364,6 +370,11 @@ class Organism {
 
             // Movement: allow food
             if (!forReproduction && cell.state == CellStates.food) {
+                continue;
+            }
+
+            // Allow prey to occupy the safe zone
+            if (this.role === "prey" && this.env.isInSafeZone(cell.col, cell.row)) {
                 continue;
             }
 
@@ -491,9 +502,9 @@ class Organism {
                             this.changeDirection(dy > 0 ? Directions.down : Directions.up);
                         }
 
-                        console.log(
-                            `[PREDATOR][CHASE] (${this.c}, ${this.r}) -> ${this.targetType} (${this.target.c}, ${this.target.r})`
-                        );
+                        // console.log(
+                        //     `[PREDATOR][CHASE] (${this.c}, ${this.r}) -> ${this.targetType} (${this.target.c}, ${this.target.r})`
+                        // );
                     } else {
                         // If there is no prey target, then actively search
                         if (Math.random() < 0.2) { // occasionally change direction
@@ -621,7 +632,7 @@ class Organism {
             for (let dy = -radius; dy <= radius; dy++) {
                 let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
 
-                if (cell && cell.owner && cell.owner.role === "prey") {
+                if (cell && cell.owner && cell.owner.role === "prey" && !env.isInSafeZone(cell.col, cell.row)) {
                     return cell.owner;
                 }
             }
@@ -644,6 +655,9 @@ class Organism {
                 }
             }
             if (org.role === "prey" && org.alarmTimer > 0) {
+                if (env.isInSafeZone(org.c, org.r)) {
+                    continue;
+                }
                 let dx = org.c - this.c;
                 let dy = org.r - this.r;
                 let dist = Math.sqrt(dx * dx + dy * dy);
@@ -666,7 +680,7 @@ class Organism {
             //console.log(`[COLLISION_CHECK] Predator (${this.c},${this.r}) vs Prey (${org.c},${org.r}) dx=${dx} dy=${dy}`);
 
             if (dx <= 1 && dy <= 1) {
-                console.log(`[PREDATOR][ATTACK] Predator at (${this.c}, ${this.r}) attacked prey at (${org.c}, ${org.r})`);
+                // console.log(`[PREDATOR][ATTACK] Predator at (${this.c}, ${this.r}) attacked prey at (${org.c}, ${org.r})`);
                 org.harm();
                 if (!org.living) {
                     this.food_collected += org.anatomy.cells.length;

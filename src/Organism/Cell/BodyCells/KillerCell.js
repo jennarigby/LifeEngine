@@ -25,6 +25,8 @@ class KillerCell extends BodyCell{
             return;
         if (Hyperparams.dontKillSameSpecies && targetOrg.species.name === this.org.species.name)
             return;
+        if (this.org.env.isInSafeZone(n_cell.col, n_cell.row))
+            return;
         targetOrg.harm();
         if (!targetOrg.living) {
             this.org.food_collected += targetOrg.anatomy.cells.length;

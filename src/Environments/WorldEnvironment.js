@@ -27,7 +27,33 @@ class WorldEnvironment extends Environment {
         this.reset_count = 0;
         this.total_ticks = 0;
         this.data_update_rate = 100;
+        this.safeZones = [];
         FossilRecord.setEnv(this);
+        this.createSafeZone();
+    }
+
+    createSafeZone() {
+        var width = Math.max(4, Math.floor(this.grid_map.cols * 0.2));
+        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.2));
+        this.safeZones = [
+            {
+                cMin: 1,
+                cMax: width + 1,
+                rMin: 1,
+                rMax: height + 1
+            },
+            {
+                cMin: Math.max(1, this.grid_map.cols - width - 1),
+                cMax: Math.max(1, this.grid_map.cols - 1),
+                rMin: Math.max(1, this.grid_map.rows - height - 1),
+                rMax: Math.max(1, this.grid_map.rows - 1)
+            }
+        ];
+    }
+
+    isInSafeZone(c, r) {
+        if (!this.safeZones || this.safeZones.length === 0) return false;
+        return this.safeZones.some(zone => c >= zone.cMin && c < zone.cMax && r >= zone.rMin && r < zone.rMax);
     }
 
     update() {
@@ -61,6 +87,7 @@ class WorldEnvironment extends Environment {
             return;
         }
         this.renderer.renderCells();
+        this.renderer.renderSafeZone(this.safeZones);
         this.renderer.renderHighlights();
 
         const prey = this.organisms.filter(o => o.role === "prey" && o.living).length;
@@ -90,7 +117,7 @@ class WorldEnvironment extends Environment {
 
     OriginOfLife() {
         //Spawn initial organisms (custom amount)
-        CustomOrganismGenerator.spawnPopulation(this, 100, 5);
+        CustomOrganismGenerator.spawnPopulation(this, 50, 5);
         // Register species
         for (let org of this.organisms) {
             FossilRecord.addSpecies(org, null);
@@ -202,6 +229,7 @@ class WorldEnvironment extends Environment {
         }
         this.organisms = [];
         this.grid_map.fillGrid(CellStates.empty, !WorldConfig.clear_walls_on_reset);
+        this.createSafeZone();
         this.renderer.renderFullGrid(this.grid_map.grid);
         this.total_mutability = 0;
         this.total_ticks = 0;
