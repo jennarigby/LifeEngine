@@ -37,6 +37,9 @@ class Organism {
             this.food_collected = Hyperparams.predatorStartingFood;
         }
 
+        // Starvation tracking (ticks since last meal)
+        this.ticksSinceMeal = 0;
+
 
         // Alarm system
         this.isCallingAlarm = false;
@@ -92,7 +95,6 @@ class Organism {
             if (dist <= radius && org.role === "prey") {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
-                org.alarmTimer = 20; // lasts a few ticks
 
                 console.log(
                     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
@@ -414,6 +416,36 @@ class Organism {
         if (this.alarmTimer > 0) this.alarmTimer--;
 
         this.lifetime++;
+
+        // Predator starvation: increment ticks since last meal and check threshold
+        if (this.role === "predator") {
+            this.ticksSinceMeal = (this.ticksSinceMeal || 0) + 1;
+            const starvationThreshold = Math.max(10, Math.floor(Hyperparams.predatorStarvationBase + this.lifetime * Hyperparams.predatorStarvationAgeFactor));
+            if (this.ticksSinceMeal > starvationThreshold) {
+                this.die();
+                console.log(`Died of starvation.` + this.ticksSinceMeal);
+                return this.living;
+            }
+        }
+
+        // //If predator hasn't moved
+        // if (this.role === "predator") {
+        //     this.lastPos = this.lastPos || { c: this.c, r: this.r };
+        //     this.stuckTimer = this.stuckTimer || 0;
+
+        //     if (this.c === this.lastPos.c && this.r === this.lastPos.r) {
+        //         this.stuckTimer++;
+        //         if (this.stuckTimer > 50) {
+        //             // force random direction change
+        //             this.changeDirection(Directions.getRandomDirection());
+        //             this.attemptRotate();
+        //             this.stuckTimer = 0;
+        //         }
+        //     } else {
+        //         this.stuckTimer = 0;
+        //         this.lastPos = { c: this.c, r: this.r };
+        //     }
+        // }
 
         if (this.lifetime > this.lifespan()) {
             this.die();

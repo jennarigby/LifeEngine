@@ -30,6 +30,8 @@ class KillerCell extends BodyCell{
         targetOrg.harm();
         if (!targetOrg.living) {
             this.org.food_collected += targetOrg.anatomy.cells.length;
+            this.org.ticksSinceMeal = 0;
+            console.log(`Predator at (${this.org.c}, ${this.org.r}) reset starvation after kill; ticksSinceMeal=${this.org.ticksSinceMeal}`);
         }
     }
 }
