@@ -55,6 +55,15 @@ class Organism {
     }
 
     inherit(parent) {
+
+        if (parent.anatomy.cells.length > 1024) {
+            this.anatomy.addDefaultCell(CellStates.mover, 0, 0);
+            this.anatomy.addDefaultCell(CellStates.killer, -1, 0);
+            this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
+            this.brain.copy(parent.brain);
+            this.role = parent.role;
+            return;
+        }
         this.move_range = parent.move_range;
         this.mutability = parent.mutability;
         this.species = parent.species;
@@ -120,7 +129,12 @@ class Organism {
     }
 
     reproduce() {
-        //produce mutated child
+        if (this.role === "prey") {
+            let preyCount = this.env.organisms.filter(o => o.role === "prey").length;
+            if (preyCount < 50) {
+                this.food_collected += Hyperparams.preyReproductionBonus;
+            }
+        }
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
         if (Hyperparams.rotationEnabled) {
@@ -162,15 +176,27 @@ class Organism {
             org.updateGrid();
             if (mutated) {
                 FossilRecord.addSpecies(org, this.species);
-            }
-            else {
-                org.species.addPop();
+            } else {
+                // Guard: if species wasn't inherited, register it.
+                if (!org.species) {
+                    console.warn(`[REPRODUCE] child has no species; registering new species. parent.species=${this.species ? this.species.name : '<none>'}`);
+                    FossilRecord.addSpecies(org, this.species || null);
+                } else {
+                    org.species.addPop();
+                }
             }
         }
         Math.max(this.food_collected -= this.foodNeeded(), 0);
     }
 
     mutate() {
+
+        if (this.role === "predator" && this.anatomy.cells.length >= 1024) {
+            return false;
+        }
+        if (this.role === "prey" && this.anatomy.cells.length >= 1024) {
+            return false;
+        }
         let added = false;
         let changed = false;
         let removed = false;
@@ -399,7 +425,9 @@ class Organism {
             var real_r = this.r + cell.rotatedRow(this.rotation);
             this.env.changeCell(real_c, real_r, CellStates.food, null);
         }
-        this.species.decreasePop();
+        if (this.species) {
+            this.species.decreasePop();
+        }
         this.living = false;
     }
 
@@ -428,24 +456,24 @@ class Organism {
             }
         }
 
-        // //If predator hasn't moved
-        // if (this.role === "predator") {
-        //     this.lastPos = this.lastPos || { c: this.c, r: this.r };
-        //     this.stuckTimer = this.stuckTimer || 0;
+        //If predator hasn't moved
+        if (this.role === "predator") {
+            this.lastPos = this.lastPos || { c: this.c, r: this.r };
+            this.stuckTimer = this.stuckTimer || 0;
 
-        //     if (this.c === this.lastPos.c && this.r === this.lastPos.r) {
-        //         this.stuckTimer++;
-        //         if (this.stuckTimer > 50) {
-        //             // force random direction change
-        //             this.changeDirection(Directions.getRandomDirection());
-        //             this.attemptRotate();
-        //             this.stuckTimer = 0;
-        //         }
-        //     } else {
-        //         this.stuckTimer = 0;
-        //         this.lastPos = { c: this.c, r: this.r };
-        //     }
-        // }
+            if (this.c === this.lastPos.c && this.r === this.lastPos.r) {
+                this.stuckTimer++;
+                if (this.stuckTimer > 50) {
+                    // force random direction change
+                    this.changeDirection(Directions.getRandomDirection());
+                    this.attemptRotate();
+                    this.stuckTimer = 0;
+                }
+            } else {
+                this.stuckTimer = 0;
+                this.lastPos = { c: this.c, r: this.r };
+            }
+        }
 
         if (this.lifetime > this.lifespan()) {
             this.die();
@@ -657,7 +685,7 @@ class Organism {
     }
 
     //Method for predators to detect prey in a certain radius
-    detectPrey(radius = 10) {
+    detectPrey(radius = 15) {
         let env = this.env;
 
         for (let dx = -radius; dx <= radius; dx++) {

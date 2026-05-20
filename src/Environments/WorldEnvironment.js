@@ -33,8 +33,8 @@ class WorldEnvironment extends Environment {
     }
 
     createSafeZone() {
-        var width = Math.max(4, Math.floor(this.grid_map.cols * 0.2));
-        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.2));
+        var width = Math.max(4, Math.floor(this.grid_map.cols * 0.15));
+        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.15));
         this.safeZones = [
             {
                 cMin: 1,
@@ -56,12 +56,15 @@ class WorldEnvironment extends Environment {
         return this.safeZones.some(zone => c >= zone.cMin && c < zone.cMax && r >= zone.rMin && r < zone.rMax);
     }
 
+    
+
     update() {
         // In WorldEnvironment.update(), add temporarily:
         if (this.total_ticks % 100 === 0) {
             let preds = this.organisms.filter(o => o.role === "predator");
             let prey = this.organisms.filter(o => o.role === "prey");
-            console.log(`[ROLES] predators=${preds.length}, prey=${prey.length}`);
+            let preyWithProducer = prey.filter(p => p.anatomy.is_producer);
+            console.log(`[TICKS=${this.total_ticks}][ROLES] predators=${preds.length}, prey=${prey.length}, prey_with_producer=${preyWithProducer.length}`);
             preds.forEach(p => console.log(`  predator at (${p.c},${p.r}) cells=${p.anatomy.cells.length} food=${p.food_collected}/${p.foodNeeded()} lifetime=${p.lifetime}/${p.lifespan()}`));
         }
         var to_remove = [];
@@ -196,6 +199,7 @@ class WorldEnvironment extends Environment {
             }
         ];
         
+        var placed = 0;
         for (var i = 0; i < num_food; i++) {
             if (Math.random() <= prob) {
                 var region = regions[Math.floor(Math.random() * regions.length)];
@@ -212,10 +216,12 @@ class WorldEnvironment extends Environment {
                     
                     if (this.grid_map.cellAt(c, r).state == CellStates.empty) {
                         this.changeCell(c, r, CellStates.food, null);
+                        placed++;
                     }
                 }
             }
         }
+        
     }
 
     reset(confirm_reset = true, reset_life = true) {
