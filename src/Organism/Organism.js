@@ -535,6 +535,7 @@ class Organism {
                 let brain_direction = 0;
 
 
+                
                 // 1. PREDATOR OVERRIDE 
                 if (this.role === "predator") {
 
@@ -552,27 +553,36 @@ class Organism {
 
                     // CHASE ONLY 
                     if (this.target) {
-
                         let dx = this.target.c - this.c;
                         let dy = this.target.r - this.r;
-
                         if (Math.abs(dx) > Math.abs(dy)) {
                             this.changeDirection(dx > 0 ? Directions.right : Directions.left);
                         } else {
                             this.changeDirection(dy > 0 ? Directions.down : Directions.up);
                         }
-
-                        // console.log(
-                        //     `[PREDATOR][CHASE] (${this.c}, ${this.r}) -> ${this.targetType} (${this.target.c}, ${this.target.r})`
-                        // );
                     } else {
-                        // If there is no prey target, then actively search
-                        if (Math.random() < 0.2) { // occasionally change direction
-                            this.changeDirection(Directions.getRandomDirection());
+                        // no prey target — spread out from other predators
+                        let nearbyPredators = this.env.organisms.filter(o =>
+                            o !== this && o.role === "predator" &&
+                            Math.abs(o.c - this.c) < 15 &&
+                            Math.abs(o.r - this.r) < 15
+                        );
+
+                        if (nearbyPredators.length > 0) {
+                            let nearest = nearbyPredators[0];
+                            let dx = this.c - nearest.c;
+                            let dy = this.r - nearest.r;
+                            this.changeDirection(Math.abs(dx) > Math.abs(dy) ?
+                                (dx > 0 ? Directions.right : Directions.left) :
+                                (dy > 0 ? Directions.down : Directions.up));
+                        } else {
+                            // no nearby predators either — wander randomly
+                            if (Math.random() < 0.2) {
+                                this.changeDirection(Directions.getRandomDirection());
+                            }
                         }
                     }
 
-                    // skip all brain logic for predators
                     brain_decision = Decision.neutral;
                 }
 
@@ -687,13 +697,14 @@ class Organism {
     //Method for predators to detect prey in a certain radius
     detectPrey(radius = 15) {
         let env = this.env;
-
         for (let dx = -radius; dx <= radius; dx++) {
             for (let dy = -radius; dy <= radius; dy++) {
                 let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-
-                if (cell && cell.owner && cell.owner.role === "prey" && !env.isInSafeZone(cell.col, cell.row)) {
-                    return cell.owner;
+                if (cell && cell.owner && cell.owner.role === "prey") {
+                    // never target prey inside safe zone
+                    if (!env.isInSafeZone(cell.owner.c, cell.owner.r)) {
+                        return cell.owner;
+                    }
                 }
             }
         }
