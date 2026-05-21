@@ -3,7 +3,7 @@ const SerializeHelper = require("../Utils/SerializeHelper");
 const Species = require("./Species");
 
 const FossilRecord = {
-    init: function(){
+    init: function () {
         this.extant_species = {};
         this.extinct_species = {};
 
@@ -13,19 +13,19 @@ const FossilRecord = {
         this.record_size_limit = 500; // store this many data points
     },
 
-    setEnv: function(env) {
+    setEnv: function (env) {
         this.env = env;
         this.setData();
     },
 
-    addSpecies: function(org, ancestor) {
+    addSpecies: function (org, ancestor) {
         var new_species = new Species(org.anatomy, ancestor, this.env.total_ticks);
         this.extant_species[new_species.name] = new_species;
         org.species = new_species;
         return new_species;
     },
 
-    addSpeciesObj: function(species) {
+    addSpeciesObj: function (species) {
         if (this.extant_species[species.name]) {
             console.warn('Tried to add already existing species. Add failed.');
             return;
@@ -34,7 +34,7 @@ const FossilRecord = {
         return species;
     },
 
-    changeSpeciesName: function(species, new_name) {
+    changeSpeciesName: function (species, new_name) {
         if (this.extant_species[new_name]) {
             console.warn('Tried to change species name to an existing species name. Change failed.');
             return;
@@ -44,11 +44,11 @@ const FossilRecord = {
         this.extant_species[new_name] = species;
     },
 
-    numExtantSpecies() {return Object.values(this.extant_species).length},
-    numExtinctSpecies() {return Object.values(this.extinct_species).length},
-    speciesIsExtant(species_name) {return !!this.extant_species[species_name]},
+    numExtantSpecies() { return Object.values(this.extant_species).length },
+    numExtinctSpecies() { return Object.values(this.extinct_species).length },
+    speciesIsExtant(species_name) { return !!this.extant_species[species_name] },
 
-    fossilize: function(species) {
+    fossilize: function (species) {
         if (!this.extant_species[species.name]) {
             console.warn('Tried to fossilize non existing species.');
             return false;
@@ -63,7 +63,7 @@ const FossilRecord = {
         return false;
     },
 
-    resurrect: function(species) {
+    resurrect: function (species) {
         if (species.extinct) {
             species.extinct = false;
             this.extant_species[species.name] = species;
@@ -74,6 +74,8 @@ const FossilRecord = {
     setData() {
         // all parallel arrays
         this.tick_record = [];
+        this.prey_counts = [];      // add
+        this.predator_counts = [];
         this.pop_counts = [];
         this.species_counts = [];
         this.av_mut_rates = [];
@@ -86,6 +88,8 @@ const FossilRecord = {
         var tick = this.env.total_ticks;
         this.tick_record.push(tick);
         this.pop_counts.push(this.env.organisms.length);
+        this.prey_counts.push(this.env.organisms.filter(o => o.role === "prey").length);           // add
+        this.predator_counts.push(this.env.organisms.filter(o => o.role === "predator").length);
         this.species_counts.push(this.numExtantSpecies());
         this.av_mut_rates.push(this.env.averageMutability());
         this.calcCellCountAverages();
@@ -105,16 +109,16 @@ const FossilRecord = {
         for (let c of CellStates.living) {
             cell_counts[c.name] = 0;
         }
-        var first=true;
+        var first = true;
         for (let s of Object.values(this.extant_species)) {
-            if (!first && this.numExtantSpecies() > 10 && s.cumulative_pop < this.min_discard){
+            if (!first && this.numExtantSpecies() > 10 && s.cumulative_pop < this.min_discard) {
                 continue;
             }
             for (let name in s.cell_counts) {
                 cell_counts[name] += s.cell_counts[name] * s.population;
             }
             total_org += s.population;
-            first=false;
+            first = false;
         }
         if (total_org == 0) {
             this.av_cells.push(0);
@@ -131,7 +135,7 @@ const FossilRecord = {
         this.av_cell_counts.push(cell_counts);
     },
 
-    getMostPopulousSpecies(){
+    getMostPopulousSpecies() {
         var max_pop = 0;
         var max_species = undefined;
         for (let s of Object.values(this.extant_species)) {
@@ -153,12 +157,14 @@ const FossilRecord = {
         this.updateData();
         let record = SerializeHelper.copyNonObjects(this);
         record.records = {
-            tick_record:this.tick_record,
-            pop_counts:this.pop_counts,
-            species_counts:this.species_counts,
-            av_mut_rates:this.av_mut_rates,
-            av_cells:this.av_cells,
-            av_cell_counts:this.av_cell_counts,
+            tick_record: this.tick_record,
+            pop_counts: this.pop_counts,
+            prey_counts: this.prey_counts,         // add
+            predator_counts: this.predator_counts,
+            species_counts: this.species_counts,
+            av_mut_rates: this.av_mut_rates,
+            av_cells: this.av_cells,
+            av_cell_counts: this.av_cell_counts,
         };
         let species = {};
         for (let s of Object.values(this.extant_species)) {

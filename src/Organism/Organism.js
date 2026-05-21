@@ -131,7 +131,7 @@ class Organism {
     reproduce() {
         if (this.role === "prey") {
             let preyCount = this.env.organisms.filter(o => o.role === "prey").length;
-            if (preyCount < 50) {
+            if (preyCount < 100) {
                 this.food_collected += Hyperparams.preyReproductionBonus;
             }
         }

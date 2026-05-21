@@ -33,8 +33,9 @@ class CustomOrganismGenerator {
         // Movement
         org.anatomy.addDefaultCell(CellStates.mover, 1, 0);
 
-        // Attack (important)
+        // Attack 
         org.anatomy.addDefaultCell(CellStates.killer, 0, 1);
+        org.anatomy.addDefaultCell(CellStates.killer, 0, -1);
 
         // Vision
         org.anatomy.addRandomizedCell(CellStates.eye, -1, 0);
