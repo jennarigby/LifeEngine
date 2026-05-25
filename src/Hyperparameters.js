@@ -4,12 +4,12 @@ const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 100;
         this.predatorLifespanMultiplier = 5;
-        this.predatorReproductionMultiplier = 20;
+        this.predatorReproductionMultiplier = 25;
         this.predatorDecayRate = 0.5;
         this.predatorStartingFood = 100;
         this.predatorStarvationBase = 1000; // base ticks before starving without meals
         this.predatorStarvationAgeFactor = 0; // extra tolerance per tick of lifetime
-        this.preyReproductionBonus = 1000; // extra food for prey when reproducing, scaled by population density
+        this.preyReproductionBonus = 1200; // extra food for prey when reproducing, scaled by population density
 
         this.foodProdProb = 0;
         this.killableNeighbors = Neighbors.adjacent;
@@ -37,7 +37,7 @@ const Hyperparams = {
         this.alarmSignallingEnabled = false;
         this.evolveIndependentEyeDecisions = true;
 
-        this.foodDropProb = 12;
+        this.foodDropProb = 8;
 
         this.extraMoverFoodCost = 0;
 

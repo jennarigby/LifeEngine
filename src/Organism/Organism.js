@@ -129,12 +129,12 @@ class Organism {
     }
 
     reproduce() {
-        if (this.role === "prey") {
-            let preyCount = this.env.organisms.filter(o => o.role === "prey").length;
-            if (preyCount < 100) {
-                this.food_collected += Hyperparams.preyReproductionBonus;
-            }
-        }
+        // if (this.role === "prey") {
+        //     let preyCount = this.env.organisms.filter(o => o.role === "prey").length;
+        //     if (preyCount < 150) {
+        //         this.food_collected += Hyperparams.preyReproductionBonus;
+        //     }
+        // }
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
         if (Hyperparams.rotationEnabled) {
@@ -191,10 +191,10 @@ class Organism {
 
     mutate() {
 
-        if (this.role === "predator" && this.anatomy.cells.length >= 1024) {
+        if (this.role === "predator" && this.anatomy.cells.length > 320) {
             return false;
         }
-        if (this.role === "prey" && this.anatomy.cells.length >= 1024) {
+        if (this.role === "prey" && this.anatomy.cells.length > 320) {
             return false;
         }
         let added = false;
@@ -475,6 +475,7 @@ class Organism {
             }
         }
 
+
         if (this.lifetime > this.lifespan()) {
             this.die();
             return this.living;
@@ -534,8 +535,21 @@ class Organism {
                 let brain_decision = Decision.neutral;
                 let brain_direction = 0;
 
+                if (this.role === "prey" && this.anatomy.has_eyes) {
+                    // if brain wants to chase but there are too many prey nearby, wander instead
+                    if (brain_decision === Decision.chase) {
+                        let nearbyPrey = this.env.organisms.filter(o =>
+                            o !== this && o.role === "prey" &&
+                            Math.abs(o.c - this.c) < 5 &&
+                            Math.abs(o.r - this.r) < 5
+                        ).length;
 
-                
+                        if (nearbyPrey > 3) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
+                    }
+                }
+
                 // 1. PREDATOR OVERRIDE 
                 if (this.role === "predator") {
 
@@ -621,15 +635,24 @@ class Organism {
                         break;
 
                     case Decision.turn_left:
-                        this.attemptRotate(Directions.getLeftDirection(this.rotation));
+                        if (!this.attemptRotate(Directions.getLeftDirection(this.rotation))) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
                         return this.living;
 
                     case Decision.turn_right:
-                        this.attemptRotate(Directions.getRightDirection(this.rotation));
+                        if (!this.attemptRotate(Directions.getRightDirection(this.rotation))) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
                         return this.living;
 
                     case Decision.stop:
-                        return this.living;
+                        this.preyStuckTimer = (this.preyStuckTimer || 0) + 1;
+                        if (this.preyStuckTimer > 30) {
+                            this.changeDirection(Directions.getRandomDirection());
+                            this.preyStuckTimer = 0;
+                        }
+                        break;
                 }
 
 

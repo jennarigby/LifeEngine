@@ -56,16 +56,46 @@ class WorldEnvironment extends Environment {
         return this.safeZones.some(zone => c >= zone.cMin && c < zone.cMax && r >= zone.rMin && r < zone.rMax);
     }
 
-    
 
     update() {
-        // In WorldEnvironment.update(), add temporarily:
+
+
         if (this.total_ticks % 100 === 0) {
             let preds = this.organisms.filter(o => o.role === "predator");
             let prey = this.organisms.filter(o => o.role === "prey");
-            let preyWithProducer = prey.filter(p => p.anatomy.is_producer);
-            console.log(`[TICKS=${this.total_ticks}][ROLES] predators=${preds.length}, prey=${prey.length}, prey_with_producer=${preyWithProducer.length}`);
-            preds.forEach(p => console.log(`  predator at (${p.c},${p.r}) cells=${p.anatomy.cells.length} food=${p.food_collected}/${p.foodNeeded()} lifetime=${p.lifetime}/${p.lifespan()}`));
+            
+            let avgPredCells =
+                preds.length > 0
+                    ? preds.reduce((sum, p) => sum + p.anatomy.cells.length, 0) / preds.length
+                    : 0;
+
+            let avgPreyCells =
+                prey.length > 0
+                    ? prey.reduce((sum, p) => sum + p.anatomy.cells.length, 0) / prey.length
+                    : 0;
+
+            let maxPredCells =
+                preds.length > 0
+                    ? Math.max(...preds.map(p => p.anatomy.cells.length))
+                    : 0;
+
+            let maxPreyCells =
+                prey.length > 0
+                    ? Math.max(...prey.map(p => p.anatomy.cells.length))
+                    : 0;
+
+            console.log(`
+            === TICK ${this.total_ticks} ===
+            Prey Count: ${prey.length}
+            Predator Count: ${preds.length}
+
+            Avg Prey Cells: ${avgPreyCells.toFixed(2)}
+            Avg Predator Cells: ${avgPredCells.toFixed(2)}
+
+            Max Prey Cells: ${maxPreyCells}
+            Max Predator Cells: ${maxPredCells}
+            `);
+
         }
         var to_remove = [];
         for (var i in this.organisms) {
@@ -79,6 +109,12 @@ class WorldEnvironment extends Environment {
             this.generateFood();
         }
         this.total_ticks++;
+        if (WorldConfig.pause_on_predator_extinction) {
+            let predatorCount = this.organisms.filter(o => o.role === "predator").length;
+            if (predatorCount === 0 && this.organisms.length > 0) {
+                $('.pause-button')[0].click();
+            }
+        }
         if (this.total_ticks % this.data_update_rate == 0) {
             FossilRecord.updateData();
         }
@@ -180,16 +216,15 @@ class WorldEnvironment extends Environment {
     }
 
     generateFood() {
-        var num_food = Math.max(Math.floor(this.grid_map.cols * this.grid_map.rows * Hyperparams.foodDropProb / 50000), 1)
+        var num_food = Math.max(Math.floor(this.grid_map.cols * this.grid_map.rows * Hyperparams.foodDropProb / 50000), 1);
         var prob = Hyperparams.foodDropProb;
-        
-        // Define corner regions (each corner gets 1/4 of the map area)
+
         var cornerSize = Math.floor(Math.min(this.grid_map.cols, this.grid_map.rows) / 4);
         var regions = [
-            {cMin: 0, cMax: cornerSize, rMin: 0, rMax: cornerSize}, // top-left
-            {cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: 0, rMax: cornerSize}, // top-right
-            {cMin: 0, cMax: cornerSize, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows}, // bottom-left
-            {cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows}, // bottom-right
+            { cMin: 0, cMax: cornerSize, rMin: 0, rMax: cornerSize },
+            { cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: 0, rMax: cornerSize },
+            { cMin: 0, cMax: cornerSize, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows },
+            { cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: this.grid_map.rows - cornerSize, rMax: this.grid_map.rows },
             {
                 cMin: Math.floor(this.grid_map.cols * 0.4),
                 cMax: Math.ceil(this.grid_map.cols * 0.6),
@@ -198,7 +233,52 @@ class WorldEnvironment extends Environment {
                 center: true
             }
         ];
-        
+
+        // Path connections between patches — define pairs of region centres
+        const regionCentres = regions.map(reg => ({
+            c: Math.floor((reg.cMin + reg.cMax) / 2),
+            r: Math.floor((reg.rMin + reg.rMax) / 2)
+        }));
+
+        // Connect each corner to the centre, and corners to adjacent corners
+        const pathPairs = [
+            [0, 4], // top-left to centre
+            [1, 4], // top-right to centre
+            [2, 4], // bottom-left to centre
+            [3, 4], // bottom-right to centre
+            [0, 1], // top-left to top-right
+            [2, 3], // bottom-left to bottom-right
+            [0, 2], // top-left to bottom-left
+            [1, 3], // top-right to bottom-right
+        ];
+
+        // Spawn sparse food along each path occasionally
+        if (Math.random() < 0.3) { // only generate paths 30% of ticks to keep them sparse
+            for (let [a, b] of pathPairs) {
+                let c1 = regionCentres[a].c, r1 = regionCentres[a].r;
+                let c2 = regionCentres[b].c, r2 = regionCentres[b].r;
+                let steps = Math.floor(Math.sqrt((c2 - c1) ** 2 + (r2 - r1) ** 2));
+
+                for (let s = 0; s < steps; s++) {
+                    // only place food occasionally along path — sparse trail
+                    if (Math.random() > 0.05) continue;
+
+                    let t = s / steps;
+                    let pc = Math.floor(c1 + t * (c2 - c1));
+                    let pr = Math.floor(r1 + t * (r2 - r1));
+
+                    // small random offset so path isn't perfectly straight
+                    pc = Math.max(0, Math.min(this.grid_map.cols - 1, pc + Math.floor(Math.random() * 3) - 1));
+                    pr = Math.max(0, Math.min(this.grid_map.rows - 1, pr + Math.floor(Math.random() * 3) - 1));
+
+                    if (this.grid_map.cellAt(pc, pr).state === CellStates.empty) {
+                        this.changeCell(pc, pr, CellStates.food, null);
+                    }
+                }
+            }
+        }
+
+        // Original cluster generation unchanged
         var placed = 0;
         for (var i = 0; i < num_food; i++) {
             if (Math.random() <= prob) {
@@ -207,13 +287,13 @@ class WorldEnvironment extends Environment {
                 var spread = region.center ? 4 : 3;
                 var baseC = Math.floor(Math.random() * (region.cMax - region.cMin)) + region.cMin;
                 var baseR = Math.floor(Math.random() * (region.rMax - region.rMin)) + region.rMin;
-                
+
                 for (var j = 0; j < clusterSize; j++) {
                     var offsetC = Math.floor(Math.random() * (spread * 2 + 1)) - spread;
                     var offsetR = Math.floor(Math.random() * (spread * 2 + 1)) - spread;
                     var c = Math.max(0, Math.min(this.grid_map.cols - 1, baseC + offsetC));
                     var r = Math.max(0, Math.min(this.grid_map.rows - 1, baseR + offsetR));
-                    
+
                     if (this.grid_map.cellAt(c, r).state == CellStates.empty) {
                         this.changeCell(c, r, CellStates.food, null);
                         placed++;
@@ -221,7 +301,6 @@ class WorldEnvironment extends Environment {
                 }
             }
         }
-        
     }
 
     reset(confirm_reset = true, reset_life = true) {

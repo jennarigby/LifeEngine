@@ -3,7 +3,7 @@ const Modes = require("./ControlModes");
 const StatsPanel = require("../Stats/StatsPanel");
 const WorldConfig = require("../WorldConfig");
 const LoadController = require("./LoadController");
-const {ColorScheme, color_scheme_names} = require("../Rendering/ColorScheme");
+const { ColorScheme, color_scheme_names } = require("../Rendering/ColorScheme");
 
 class ControlPanel {
     constructor(engine) {
@@ -18,7 +18,7 @@ class ControlPanel {
         this.defineModeControls();
         this.defineColorSchemeControls();
         this.defineBrainEditorControls();
-        this.organism_record=0;
+        this.organism_record = 0;
         this.env_controller = this.engine.env.controller;
         this.editor_controller = this.engine.organism_editor.controller;
         this.env_controller.setControlPanel(this);
@@ -26,21 +26,21 @@ class ControlPanel {
         this.stats_panel = new StatsPanel(this.engine.env);
         this.headless_opacity = 1;
         this.opacity_change_rate = -0.8;
-        this.paused=false;
+        this.paused = false;
         this.setHyperparamDefaults();
         LoadController.control_panel = this;
     }
 
-    defineMinMaxControls(){
+    defineMinMaxControls() {
         this.control_panel_active = false;
         this.no_hud = false;
-        $('#minimize').click ( () => {
+        $('#minimize').click(() => {
             $('.control-panel').css('display', 'none');
             $('.hot-controls').css('display', 'block');
             this.control_panel_active = false;
             this.stats_panel.stopAutoRender();
         });
-        $('#maximize').click ( () => {
+        $('#maximize').click(() => {
             $('.control-panel').css('display', 'grid');
             $('.hot-controls').css('display', 'none');
             this.control_panel_active = true;
@@ -51,7 +51,7 @@ class ControlPanel {
     }
 
     defineHotkeys() {
-        $('body').keydown( (e) => {
+        $('body').keydown((e) => {
             let focused = document.activeElement;
             if (focused.tagName === "INPUT" && focused.type === "text") return;
             switch (e.key.toLowerCase()) {
@@ -121,7 +121,7 @@ class ControlPanel {
         });
     }
 
-    defineEngineSpeedControls(){
+    defineEngineSpeedControls() {
         this.slider = document.getElementById("slider");
         this.hot_slider = document.getElementById("slider-hot");
 
@@ -151,9 +151,9 @@ class ControlPanel {
         if (this.hot_slider) {
             this.hot_slider.value = this.slider.value;
         }
-        $('#fps').text("Target FPS: "+this.fps);
+        $('#fps').text("Target FPS: " + this.fps);
 
-        this.slider.oninput = function() {
+        this.slider.oninput = function () {
             let newFps;
             let fpsText;
             if (this.slider.value == 100) {
@@ -163,7 +163,7 @@ class ControlPanel {
                 newFps = sliderToFps(this.slider.value);
                 fpsText = newFps;
             }
-            
+
             this.fps = newFps;
             if (this.engine.running) {
                 this.changeEngineSpeed(newFps);
@@ -178,7 +178,7 @@ class ControlPanel {
         }
 
         if (this.hot_slider) {
-            this.hot_slider.oninput = function() {
+            this.hot_slider.oninput = function () {
                 let newFps;
                 let fpsText;
                 if (this.hot_slider.value == 100) {
@@ -200,15 +200,15 @@ class ControlPanel {
             }
         }
 
-        $('.pause-button').click(function() {
+        $('.pause-button').click(function () {
             // toggle pause
             this.setPaused(this.engine.running);
         }.bind(this));
 
-        $('.headless').click(function() {
+        $('.headless').click(function () {
             $('.headless').find("i").toggleClass("fa fa-eye");
             $('.headless').find("i").toggleClass("fa fa-eye-slash");
-            if (WorldConfig.headless){
+            if (WorldConfig.headless) {
                 $('#headless-notification').css('display', 'none');
                 this.engine.env.renderFull();
             }
@@ -222,12 +222,12 @@ class ControlPanel {
     defineTabNavigation() {
         this.tab_id = 'about';
         var self = this;
-        $('.tabnav-item').click(function() {
+        $('.tabnav-item').click(function () {
             $('.tab').css('display', 'none');
-            var tab = '#'+this.id+'.tab';
+            var tab = '#' + this.id + '.tab';
             $(tab).css('display', 'grid');
             $('.tabnav-item').removeClass('open-tab')
-            $('#'+this.id+'.tabnav-item').addClass('open-tab');
+            $('#' + this.id + '.tabnav-item').addClass('open-tab');
             self.engine.organism_editor.is_active = (this.id == 'editor');
             self.stats_panel.stopAutoRender();
             if (this.id === 'stats') {
@@ -241,14 +241,17 @@ class ControlPanel {
     }
 
     defineWorldControls() {
-        $('#fill-window').change(function() {
+        $('#pause-predator-extinct').change(function () {
+            WorldConfig.pause_on_predator_extinction = this.checked;
+        });
+        $('#fill-window').change(function () {
             if (this.checked)
-                $('.col-row-input').css('display' ,'none');
+                $('.col-row-input').css('display', 'none');
             else
-                $('.col-row-input').css('display' ,'block');
+                $('.col-row-input').css('display', 'block');
         });
 
-        $('#resize').click(function() {
+        $('#resize').click(function () {
             if (!confirm('The current environment will be lost. Proceed?'))
                 return;
             var cell_size = $('#cell-size').val();
@@ -267,48 +270,48 @@ class ControlPanel {
             this.setPaused(false);
         }.bind(this));
 
-        $('#auto-reset').change(function() {
+        $('#auto-reset').change(function () {
             WorldConfig.auto_reset = this.checked;
         });
-        $('#auto-pause').change(function() {
+        $('#auto-pause').change(function () {
             WorldConfig.auto_pause = this.checked;
         });
-        $('#clear-walls-reset').change(function() {
+        $('#clear-walls-reset').change(function () {
             WorldConfig.clear_walls_on_reset = this.checked;
         });
-        $('#reset-with-editor-org').click( () => {
+        $('#reset-with-editor-org').click(() => {
             let env = this.engine.env;
             if (!env.reset(true, false)) return;
             let center = env.grid_map.getCenter();
             let org = this.editor_controller.env.getCopyOfOrg();
             this.env_controller.dropOrganism(org, center[0], center[1])
         });
-        $('#save-env').click( () => {
+        $('#save-env').click(() => {
             let was_running = this.engine.running;
             this.setPaused(true);
             let env = this.engine.env.serialize();
             let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(env));
             let downloadEl = document.getElementById('download-el');
             downloadEl.setAttribute("href", data);
-            downloadEl.setAttribute("download", $('#save-env-name').val()+".json");
+            downloadEl.setAttribute("download", $('#save-env-name').val() + ".json");
             downloadEl.click();
             if (was_running)
                 this.setPaused(false);
         });
         $('#load-env').click(() => {
-            LoadController.loadJson((env)=>{
+            LoadController.loadJson((env) => {
                 this.loadEnv(env);
             });
         });
-        $('#upload-env').change((e)=>{
+        $('#upload-env').change((e) => {
             let files = e.target.files;
-            if (!files.length) {return;};
+            if (!files.length) { return; };
             let reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     let env = JSON.parse(e.target.result);
                     this.loadEnv(env);
-                } catch(except) {
+                } catch (except) {
                     console.error(except)
                     alert('Failed to load world');
                 }
@@ -336,45 +339,45 @@ class ControlPanel {
     }
 
     defineHyperparameterControls() {
-        $('#food-prod-prob').change(function() {
+        $('#food-prod-prob').change(function () {
             Hyperparams.foodProdProb = $('#food-prod-prob').val();
         }.bind(this));
-        $('#lifespan-multiplier').change(function() {
+        $('#lifespan-multiplier').change(function () {
             Hyperparams.lifespanMultiplier = $('#lifespan-multiplier').val();
         }.bind(this));
-        $('#predator-reproduction-multiplier').change(function() {
+        $('#predator-reproduction-multiplier').change(function () {
             Hyperparams.predatorReproductionMultiplier = parseFloat($('#predator-reproduction-multiplier').val());
         }.bind(this));
 
-        $('#rot-enabled').change(function() {
+        $('#rot-enabled').change(function () {
             Hyperparams.rotationEnabled = this.checked;
         });
-        $('#insta-kill').change(function() {
+        $('#insta-kill').change(function () {
             Hyperparams.instaKill = this.checked;
         });
-        $('#look-range').change(function() {
+        $('#look-range').change(function () {
             Hyperparams.lookRange = $('#look-range').val();
         });
-        $('#see-through-self').change(function() {
+        $('#see-through-self').change(function () {
             Hyperparams.seeThroughSelf = this.checked;
         });
-        $('#alarm-signalling').change(function() {
+        $('#alarm-signalling').change(function () {
             Hyperparams.alarmSignallingEnabled = this.checked;
         });
-        $('#independent-eye-decisions').change(function() {
+        $('#independent-eye-decisions').change(function () {
             Hyperparams.evolveIndependentEyeDecisions = this.checked;
         });
-        $('#food-drop-rate').change(function() {
+        $('#food-drop-rate').change(function () {
             Hyperparams.foodDropProb = $('#food-drop-rate').val();
         });
-        $('#extra-mover-cost').change(function() {
+        $('#extra-mover-cost').change(function () {
             Hyperparams.extraMoverFoodCost = parseInt($('#extra-mover-cost').val());
         });
-        $('#org-limit').change(function() {
+        $('#org-limit').change(function () {
             Hyperparams.maxOrganisms = parseInt($('#org-limit').val());
         });
 
-        $('#evolved-mutation').change( function() {
+        $('#evolved-mutation').change(function () {
             if (this.checked) {
                 $('.global-mutation-container').css('display', 'none');
                 $('#avg-mut').css('display', 'block');
@@ -385,11 +388,11 @@ class ControlPanel {
             }
             Hyperparams.useGlobalMutability = !this.checked;
         });
-        $('#global-mutation').change( function() {
+        $('#global-mutation').change(function () {
             Hyperparams.globalMutability = parseInt($('#global-mutation').val());
         });
-        $('.mut-prob').change( function() {
-            switch(this.id){
+        $('.mut-prob').change(function () {
+            switch (this.id) {
                 case "add-prob":
                     Hyperparams.addProb = this.value;
                     break;
@@ -404,19 +407,19 @@ class ControlPanel {
             $('#change-prob').val(Math.floor(Hyperparams.changeProb));
             $('#remove-prob').val(Math.floor(Hyperparams.removeProb));
         });
-        $('#mutation-symmetry-chance').change(function() {
+        $('#mutation-symmetry-chance').change(function () {
             Hyperparams.mutationSymmetryChance = parseInt($('#mutation-symmetry-chance').val());
         });
-        $('#brain-mutation-chance').change(function() {
+        $('#brain-mutation-chance').change(function () {
             Hyperparams.brainMutationChance = parseInt($('#brain-mutation-chance').val());
         });
-        $('#movers-produce').change( function() {
+        $('#movers-produce').change(function () {
             Hyperparams.moversCanProduce = this.checked;
         });
-        $('#food-blocks').change( function() {
-            Hyperparams.foodBlocksReproduction = this.checked;        
+        $('#food-blocks').change(function () {
+            Hyperparams.foodBlocksReproduction = this.checked;
         });
-        $('#dont-kill-same-species').change(function() {
+        $('#dont-kill-same-species').change(function () {
             Hyperparams.dontKillSameSpecies = this.checked;
         });
         $('#reset-rules').click(() => {
@@ -435,12 +438,12 @@ class ControlPanel {
         $('#load-controls').click(() => {
             $('#upload-hyperparams').click();
         });
-        $('#upload-hyperparams').change((e)=>{
+        $('#upload-hyperparams').change((e) => {
             let files = e.target.files;
-            if (!files.length) {return;};
+            if (!files.length) { return; };
             let reader = new FileReader();
             reader.onload = (e) => {
-                let result=JSON.parse(e.target.result);
+                let result = JSON.parse(e.target.result);
                 Hyperparams.loadJsonObj(result);
                 this.updateHyperparamUIValues();
                 // have to clear the value so change() will be triggered if the same file is uploaded again
@@ -455,7 +458,7 @@ class ControlPanel {
         this.updateHyperparamUIValues();
     }
 
-    updateHyperparamUIValues(){
+    updateHyperparamUIValues() {
         $('#food-prod-prob').val(Hyperparams.foodProdProb);
         $('#lifespan-multiplier').val(Hyperparams.lifespanMultiplier);
         $('#predator-reproduction-multiplier').val(Hyperparams.predatorReproductionMultiplier);
@@ -478,7 +481,7 @@ class ControlPanel {
         $('#alarm-signalling').prop('checked', Hyperparams.alarmSignallingEnabled);
         $('#global-mutation').val(Hyperparams.globalMutability);
         $('#independent-eye-decisions').prop('checked', Hyperparams.evolveIndependentEyeDecisions);
-        
+
         if (!Hyperparams.useGlobalMutability) {
             $('.global-mutation-container').css('display', 'none');
             $('#avg-mut').css('display', 'block');
@@ -491,11 +494,11 @@ class ControlPanel {
 
     defineModeControls() {
         var self = this;
-        $('.edit-mode-btn').click( function() {
+        $('.edit-mode-btn').click(function () {
             $('#cell-selections').css('display', 'none');
             $('#organism-options').css('display', 'none');
             self.editor_controller.setEditorPanel();
-            switch(this.id) {
+            switch (this.id) {
                 case "food-drop":
                     self.setMode(Modes.FoodDrop);
                     break;
@@ -508,7 +511,7 @@ class ControlPanel {
                 case "select":
                     self.setMode(Modes.Select);
                     break;
-                
+
                 case "drop-org":
                     self.setMode(Modes.Clone);
                     break;
@@ -516,39 +519,39 @@ class ControlPanel {
                     self.setMode(Modes.Drag);
             }
             $('.edit-mode-btn').removeClass('selected');
-            $('.'+this.id).addClass('selected');
+            $('.' + this.id).addClass('selected');
         });
-        $('.reset-view').click( function(){
+        $('.reset-view').click(function () {
             this.env_controller.resetView();
         }.bind(this));
 
         var env = this.engine.env;
-        $('#reset-env').click( function() {
+        $('#reset-env').click(function () {
             env.reset();
             this.stats_panel.reset();
         }.bind(this));
-        $('#clear-env').click( () => {
+        $('#clear-env').click(() => {
             env.reset(true, false);
             this.stats_panel.reset();
         });
         $('#brush-slider').on('input change', function () {
             WorldConfig.brush_size = this.value;
         });
-        $('#random-walls').click( function() {
+        $('#random-walls').click(function () {
             this.env_controller.randomizeWalls();
         }.bind(this));
-        $('#clear-walls').click( function() {
+        $('#clear-walls').click(function () {
             this.engine.env.clearWalls();
         }.bind(this));
-        $('#clear-editor').click( function() {
+        $('#clear-editor').click(function () {
             this.engine.organism_editor.setDefaultOrg();
             this.editor_controller.setEditorPanel();
         }.bind(this));
-        $('#generate-random').click( function() {
+        $('#generate-random').click(function () {
             this.engine.organism_editor.createRandom();
             this.editor_controller.setEditorPanel();
         }.bind(this));
-        $('.reset-random').click( function() {
+        $('.reset-random').click(function () {
             this.engine.organism_editor.resetWithRandomOrgs(this.engine.env);
         }.bind(this));
 
@@ -567,12 +570,12 @@ class ControlPanel {
         if (!select.length) return;
         color_scheme_names.forEach(name => select.append(`<option value="${name}">${name}</option>`));
         select.val('neon');
-        select.change(function() { ColorScheme.loadColorScheme(this.value); });
+        select.change(function () { ColorScheme.loadColorScheme(this.value); });
     }
 
     // Brain Editor Controls
     defineBrainEditorControls() {
-                // Replace brain detail panels with a single Brain-edit button while
+        // Replace brain detail panels with a single Brain-edit button while
         // retaining the original .brain-details wrapper so existing visibility
         // logic still works.
         const btnHtml = '<button class="brain-editor-btn" title="Edit Brain">Brain <i class="fa fa-brain"></i></button>';
@@ -623,7 +626,7 @@ class ControlPanel {
         if (paused) {
             $('.pause-button').find("i").removeClass("fa-pause");
             $('.pause-button').find("i").addClass("fa-play");
-            if (this.engine.running) 
+            if (this.engine.running)
                 this.engine.stop();
         }
         else if (!paused) {
@@ -658,22 +661,22 @@ class ControlPanel {
         if (!this.engine.running)
             return;
         const min_opacity = 0.4;
-        var op = this.headless_opacity + (this.opacity_change_rate*delta_time/1000);
-        if (op <= min_opacity){
-            op=min_opacity;
+        var op = this.headless_opacity + (this.opacity_change_rate * delta_time / 1000);
+        if (op <= min_opacity) {
+            op = min_opacity;
             this.opacity_change_rate = -this.opacity_change_rate;
         }
-        else if (op >= 1){
-            op=1;
+        else if (op >= 1) {
+            op = 1;
             this.opacity_change_rate = -this.opacity_change_rate;
         }
         this.headless_opacity = op;
-        $('#headless-notification').css('opacity',(op*100)+'%');
+        $('#headless-notification').css('opacity', (op * 100) + '%');
     }
 
     update(delta_time) {
         $('#fps-actual').text("Actual FPS: " + Math.floor(this.engine.actual_fps));
-        $('#fps-hot').text(Math.floor(this.engine.actual_fps)+' FPS');
+        $('#fps-hot').text(Math.floor(this.engine.actual_fps) + ' FPS');
         $('#reset-count').text("Auto reset count: " + this.engine.env.reset_count);
         this.stats_panel.updateDetails();
         if (WorldConfig.headless)

@@ -83,57 +83,68 @@ class CustomOrganismGenerator {
 
     // SPAWN POPULATION
     static spawnPopulation(env, numPrey, numPredators) {
+    let spawned = 0;
+    const width = env.grid_map.cols;
+    const height = env.grid_map.rows;
+    const halfWidth = Math.floor(width / 2);
+    const gridSpacing = 10;
+    const margin = 5;
 
-        let spawned = 0;
-        const width = env.grid_map.cols;
-        const height = env.grid_map.rows;
-        const baseC = Math.floor(width / 2);
-        const baseR = Math.floor(height / 2);
+    // Calculate grid positions symmetrically
+    const cols = Math.floor((halfWidth - margin) / gridSpacing);
+    const rows = Math.floor((height - margin * 2) / gridSpacing);
+    let preyIndex = 0;
 
-        // Spawn prey at deterministic grid positions
-        let gridSpacing = 10; // space between prey
-        let preyIndex = 0;
-        for (let c = gridSpacing; c < width && preyIndex < numPrey; c += gridSpacing) {
-            for (let r = gridSpacing; r < height && preyIndex < numPrey; r += gridSpacing) {
-                let prey = this.createPrey(env, c, r);
-                if (this.tryAddOrganism(env, prey, c, r)) {
+    for (let ci = 0; ci < cols && preyIndex < numPrey; ci++) {
+        for (let ri = 0; ri < rows && preyIndex < numPrey; ri++) {
+            let r = margin + ri * gridSpacing;
+
+            // Left side position
+            let cLeft = margin + ci * gridSpacing;
+            // Mirror on right side
+            let cRight = width - margin - ci * gridSpacing;
+
+            let preyLeft = this.createPrey(env, cLeft, r);
+            if (this.tryAddOrganism(env, preyLeft, cLeft, r)) {
+                spawned++;
+                preyIndex++;
+            }
+
+            if (preyIndex < numPrey) {
+                let preyRight = this.createPrey(env, cRight, r);
+                if (this.tryAddOrganism(env, preyRight, cRight, r)) {
                     spawned++;
                     preyIndex++;
                 }
             }
         }
-
-        // Spawn predators at fixed positions relative to center
-        const predatorPositions = [
-            [baseC, baseR - 6],
-            [baseC - 5, baseR],
-            [baseC + 5, baseR],
-            [baseC - 4, baseR + 4],
-            [baseC + 4, baseR + 4]
-        ];
-
-        for (let i = 0; i < numPredators; i++) {
-            let [c, r] = predatorPositions[i] || [baseC + 6 + i, baseR];
-            let predator = this.createPredator(env, c, r);
-
-            if (this.tryAddOrganism(env, predator, c, r)) {
-                spawned++;
-                continue;
-            }
-
-            // Fallback deterministic scan if the target spot is occupied
-            let fallback = this.findValidPosition(env, 200);
-            if (fallback) {
-                let [fc, fr] = fallback;
-                let predator2 = this.createPredator(env, fc, fr);
-                if (this.tryAddOrganism(env, predator2, fc, fr)) {
-                    spawned++;
-                }
-            }
-        }
-
-        console.log("Spawned organisms:", spawned);
     }
+
+    // One predator in each corner
+    const cornerPositions = [
+        [margin, margin],
+        [width - margin, margin],
+        [margin, height - margin],
+        [width - margin, height - margin],
+    ];
+
+    for (let i = 0; i < Math.min(numPredators, cornerPositions.length); i++) {
+        let [c, r] = cornerPositions[i];
+        let predator = this.createPredator(env, c, r);
+        if (this.tryAddOrganism(env, predator, c, r)) {
+            spawned++;
+            continue;
+        }
+        let fallback = this.findValidPosition(env, 200);
+        if (fallback) {
+            let [fc, fr] = fallback;
+            let predator2 = this.createPredator(env, fc, fr);
+            if (this.tryAddOrganism(env, predator2, fc, fr)) spawned++;
+        }
+    }
+
+    console.log("Spawned organisms:", spawned);
+}
 }
 
 module.exports = CustomOrganismGenerator;
