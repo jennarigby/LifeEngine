@@ -56,23 +56,49 @@ class Organism {
 
     inherit(parent) {
 
-        if (parent.anatomy.cells.length > 1024) {
-            this.anatomy.addDefaultCell(CellStates.mover, 0, 0);
-            this.anatomy.addDefaultCell(CellStates.killer, -1, 0);
-            this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
-            this.brain.copy(parent.brain);
-            this.role = parent.role;
-            return;
-        }
-        this.move_range = parent.move_range;
-        this.mutability = parent.mutability;
-        this.species = parent.species;
-        for (var c of parent.anatomy.cells) {
-            //deep copy parent cells
-            this.anatomy.addInheritCell(c);
-        }
-        this.brain.copy(parent.brain);
+        // ensure role consistency
         this.role = parent.role;
+
+        // Wipe any existing structure
+        this.anatomy.clear();
+
+        // =========================
+        // FIXED BODY BY ROLE
+        // =========================
+
+        if (this.role === "prey") {
+            this.anatomy.addDefaultCell(CellStates.mover, 0, 0);
+            this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
+            this.anatomy.addDefaultCell(CellStates.mouth, -1, 0);
+        }
+
+        if (this.role === "predator") {
+            this.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
+            // Movement
+            this.anatomy.addDefaultCell(CellStates.mover, 1, 0);
+            // Attack 
+            this.anatomy.addDefaultCell(CellStates.killer, 0, 1);
+            this.anatomy.addDefaultCell(CellStates.killer, 0, -1);
+            // Vision
+            this.anatomy.addRandomizedCell(CellStates.eye, -1, 0);
+        }
+
+        // =========================
+        // BEHAVIOUR ONLY INHERITANCE
+        // =========================
+
+        this.brain.copy(parent.brain);
+
+        this.move_range = parent.move_range;
+
+        // LOCKED: prevents any structural evolution leakage
+        this.mutability = 0;
+
+        // identity
+        this.species = parent.species;
+
+
+
     }
 
     detectPredator(radius = 15) {
@@ -115,8 +141,8 @@ class Organism {
     // amount of food required before it can reproduce
     foodNeeded() {
         let base = this.anatomy.is_mover ? this.anatomy.cells.length + Hyperparams.extraMoverFoodCost : this.anatomy.cells.length;
-        const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
-        return base * multiplier;
+        //const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
+        return base * 15;
     }
 
     lifespan() {
@@ -191,12 +217,7 @@ class Organism {
 
     mutate() {
 
-        if (this.role === "predator" && this.anatomy.cells.length > 320) {
-            return false;
-        }
-        if (this.role === "prey" && this.anatomy.cells.length > 320) {
-            return false;
-        }
+        return false;
         let added = false;
         let changed = false;
         let removed = false;
