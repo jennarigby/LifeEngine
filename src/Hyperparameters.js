@@ -2,18 +2,17 @@ const Neighbors = require("./Grid/Neighbors");
 
 const Hyperparams = {
     setDefaults: function() {
-        this.lifespanMultiplier = 500;
-        this.predatorLifespanMultiplier = 1;
+        this.lifespanMultiplier = 1000;
+        this.predatorLifespanMultiplier = 1.2;
         this.predatorReproductionMultiplier = 25;
         this.predatorDecayRate = 0.5;
         this.predatorStartingFood = 0;
         this.predatorStarvationBase = 1500; // base ticks before starving without meals
-        //this.predatorStarvationAgeFactor = 0; // extra tolerance per tick of lifetime
-        //this.preyReproductionBonus = 1200; // extra food for prey when reproducing, scaled by population density
+        
 
         this.foodProdProb = 0;
         this.killableNeighbors = Neighbors.adjacent;
-        this.edibleNeighbors = Neighbors.adjacent;
+        this.edibleNeighbors = Neighbors.all;
         this.growableNeighbors = Neighbors.adjacent;
 
         this.useGlobalMutability = false;

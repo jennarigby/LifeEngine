@@ -62,14 +62,27 @@ class Organism {
         // Wipe any existing structure
         this.anatomy.clear();
 
-        // =========================
-        // FIXED BODY BY ROLE
-        // =========================
 
         if (this.role === "prey") {
-            this.anatomy.addDefaultCell(CellStates.mover, 0, 0);
-            this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
-            this.anatomy.addDefaultCell(CellStates.mouth, -1, 0);
+            // Core body
+        this.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
+
+        // Movement
+        this.anatomy.addDefaultCell(CellStates.mover, 1, 0);
+             // Four eyes facing all directions
+        this.anatomy.addDefaultCell(CellStates.eye, 0, -1);
+        this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
+        this.anatomy.addDefaultCell(CellStates.eye, -1, 0);
+        
+
+        // Set eye directions
+        const eyeDirections = [Directions.up, Directions.down, Directions.left, Directions.right];
+        let eyeIndex = 0;
+        for (let cell of this.anatomy.cells) {
+            if (cell.state.name === CellStates.eye.name) {
+                cell.direction = eyeDirections[eyeIndex++];
+            }
+        }
         }
 
         if (this.role === "predator") {
@@ -83,15 +96,10 @@ class Organism {
             this.anatomy.addRandomizedCell(CellStates.eye, -1, 0);
         }
 
-        // =========================
-        // BEHAVIOUR ONLY INHERITANCE
-        // =========================
-
         this.brain.copy(parent.brain);
 
         this.move_range = parent.move_range;
 
-        // LOCKED: prevents any structural evolution leakage
         this.mutability = 0;
 
         // identity
@@ -141,8 +149,11 @@ class Organism {
     // amount of food required before it can reproduce
     foodNeeded() {
         let base = this.anatomy.is_mover ? this.anatomy.cells.length + Hyperparams.extraMoverFoodCost : this.anatomy.cells.length;
-        //const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
-        return base * 15;
+        if (this.role === "prey") {
+            return Math.max(1, Math.floor(base * 15.0));
+        }
+        const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
+        return base * multiplier;
     }
 
     lifespan() {
@@ -155,12 +166,11 @@ class Organism {
     }
 
     reproduce() {
-        // if (this.role === "prey") {
-        //     let preyCount = this.env.organisms.filter(o => o.role === "prey").length;
-        //     if (preyCount < 150) {
-        //         this.food_collected += Hyperparams.preyReproductionBonus;
-        //     }
-        // }
+        const foodCost = this.foodNeeded();
+        if (this.role === "prey") {
+            console.log(`[PREY][REPRODUCE] Organism at (${this.c}, ${this.r}) reproducing - Food cost: ${foodCost}, Remaining: ${Math.max(0, this.food_collected - foodCost)}`);
+        }
+
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
         if (Hyperparams.rotationEnabled) {
@@ -211,6 +221,8 @@ class Organism {
                     org.species.addPop();
                 }
             }
+        } else {
+            console.log(`[REPRODUCE][FAIL] No space at (${new_c}, ${new_r})`);
         }
         Math.max(this.food_collected -= this.foodNeeded(), 0);
     }
@@ -380,21 +392,6 @@ class Organism {
         return cell.state == CellStates.empty || cell.owner == this || cell.owner == parent || cell.state == CellStates.food;
     }
 
-    // isClear(col, row, rotation = this.rotation) {
-    //     for (var loccell of this.anatomy.cells) {
-    //         var cell = this.getRealCell(loccell, col, row, rotation);
-    //         if (cell == null) {
-    //             return false;
-    //         }
-    //         if (cell.owner == this || cell.state == CellStates.empty || (!Hyperparams.foodBlocksReproduction && cell.state == CellStates.food)
-    //             || (this.role === "predator" && cell.owner && cell.owner.role === "prey")) {
-    //             continue;
-    //         }
-    //         return false;
-    //     }
-    //     return true;
-    // }
-
     //Updated version of isClear to allow predators to move onto food 
     isClear(col, row, rotation = this.rotation, forReproduction = false) {
         for (var loccell of this.anatomy.cells) {
@@ -502,15 +499,14 @@ class Organism {
             return this.living;
         }
 
-        if (this.food_collected >= this.foodNeeded()) {
-            this.reproduce();
-        }
+        
 
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
             if (Hyperparams.alarmSignallingEnabled) {
                 let predatorNearby = this.detectPredator();
 
+                //Alarm call sent if predators are nearby
                 if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0) {
                     this.isCallingAlarm = true;
                     this.alarmCooldown = 10;
@@ -520,16 +516,20 @@ class Organism {
                     this.isCallingAlarm = false;
                 }
 
+                //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
                     this.broadcastAlarm(30);
-                    this.food_collected = Math.max(0, this.food_collected - 0.2);
+                    //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
 
+                //
                 if (this.isCallingAlarm) {
                     this.alarmMovePenalty = true;
                 } else {
                     this.alarmMovePenalty = false;
                 }
+
+
             } else {
                 this.isCallingAlarm = false;
                 this.alarmTimer = 0;
@@ -539,13 +539,16 @@ class Organism {
         }
 
 
-        // 2. EXECUTE CELL BEHAVIOUR
+        //  EXECUTE CELL BEHAVIOUR
         for (var cell of this.anatomy.cells) {
             cell.performFunction();
             if (!this.living) return this.living;
         }
+        if (this.food_collected >= this.foodNeeded()) {
+            this.reproduce();
+        }
 
-        // 3. MOVEMENT DECISION 
+        //  MOVEMENT DECISION 
         let dontmove = false;
 
         if (this.anatomy.is_mover) {
@@ -556,22 +559,8 @@ class Organism {
                 let brain_decision = Decision.neutral;
                 let brain_direction = 0;
 
-                if (this.role === "prey" && this.anatomy.has_eyes) {
-                    // if brain wants to chase but there are too many prey nearby, wander instead
-                    if (brain_decision === Decision.chase) {
-                        let nearbyPrey = this.env.organisms.filter(o =>
-                            o !== this && o.role === "prey" &&
-                            Math.abs(o.c - this.c) < 5 &&
-                            Math.abs(o.r - this.r) < 5
-                        ).length;
 
-                        if (nearbyPrey > 3) {
-                            this.changeDirection(Directions.getRandomDirection());
-                        }
-                    }
-                }
-
-                // 1. PREDATOR OVERRIDE 
+                // Predator brain for movement decisions - overrides prey brain if predator has a target
                 if (this.role === "predator") {
 
                     // acquire / maintain target
@@ -621,14 +610,14 @@ class Organism {
                     brain_decision = Decision.neutral;
                 }
 
-                // 2. PREY BRAIN (ONLY PREY)
+                // PREY BRAIN 
                 if (this.role === "prey" && this.anatomy.has_eyes) {
                     let result = this.brain.decide();
                     brain_decision = result.decision;
                     brain_direction = result.move_direction;
                 }
 
-                // 3. PREY ALARM OVERRIDE
+                // ALARM OVERRIDE - if prey has heard an alarm, override brain decision to move away from the source of the alarm
                 if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
                     let dx = this.c - this.alarmSource.c;
                     let dy = this.r - this.alarmSource.r;
@@ -637,7 +626,22 @@ class Organism {
                     brain_decision = Decision.neutral;
                 }
 
-                // 4. BRAIN DECISION (ONLY PREY )
+                if (this.role === "prey") {
+                    // if brain wants to chase food but there are too many prey nearby, wander instead
+                    if (brain_decision === Decision.chase) {
+                        let nearbyPrey = this.env.organisms.filter(o =>
+                            o !== this && o.role === "prey" &&
+                            Math.abs(o.c - this.c) < 3 &&
+                            Math.abs(o.r - this.r) < 3
+                        ).length;
+
+                        if (nearbyPrey > 7) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
+                    }
+                }
+
+                // Prey brain for movement decisions
                 switch (brain_decision) {
                     case Decision.chase:
                         this.changeDirection(brain_direction);
@@ -677,7 +681,7 @@ class Organism {
                 }
 
 
-                // 5. MOVE 
+                // MOVE 
                 let moved = this.attemptMove();
 
                 if (!moved) {
