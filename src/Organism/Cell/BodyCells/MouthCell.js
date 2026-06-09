@@ -36,7 +36,7 @@ class MouthCell extends BodyCell{
             // Log prey food consumption and progress towards reproduction
             const foodNeeded = this.org.foodNeeded();
             const progress = ((this.org.food_collected / foodNeeded) * 100).toFixed(1);
-            console.log(`[PREY][EAT] Organism at (${this.org.c}, ${this.org.r}) - Food: ${this.org.food_collected}/${foodNeeded} (${progress}% to reproduce)`);
+            //console.log(`[PREY][EAT] Organism at (${this.org.c}, ${this.org.r}) - Food: ${this.org.food_collected}/${foodNeeded} (${progress}% to reproduce)`);
         }
     }
 }

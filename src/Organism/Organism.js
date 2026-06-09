@@ -167,9 +167,9 @@ class Organism {
 
     reproduce() {
         const foodCost = this.foodNeeded();
-        if (this.role === "prey") {
-            console.log(`[PREY][REPRODUCE] Organism at (${this.c}, ${this.r}) reproducing - Food cost: ${foodCost}, Remaining: ${Math.max(0, this.food_collected - foodCost)}`);
-        }
+        // if (this.role === "prey") {
+        //     console.log(`[PREY][REPRODUCE] Organism at (${this.c}, ${this.r}) reproducing - Food cost: ${foodCost}, Remaining: ${Math.max(0, this.food_collected - foodCost)}`);
+        // }
 
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
@@ -222,7 +222,7 @@ class Organism {
                 }
             }
         } else {
-            console.log(`[REPRODUCE][FAIL] No space at (${new_c}, ${new_r})`);
+            //console.log(`[REPRODUCE][FAIL] No space at (${new_c}, ${new_r})`);
         }
         Math.max(this.food_collected -= this.foodNeeded(), 0);
     }

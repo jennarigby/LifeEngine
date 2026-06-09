@@ -74,8 +74,10 @@ const FossilRecord = {
     setData() {
         // all parallel arrays
         this.tick_record = [];
-        this.prey_counts = [];      // add
+        this.prey_counts = [];
         this.predator_counts = [];
+        this.prey_avg_lifespan = [];
+        this.predator_avg_lifespan = [];
         this.pop_counts = [];
         this.species_counts = [];
         this.av_mut_rates = [];
@@ -88,14 +90,26 @@ const FossilRecord = {
         var tick = this.env.total_ticks;
         this.tick_record.push(tick);
         this.pop_counts.push(this.env.organisms.length);
-        this.prey_counts.push(this.env.organisms.filter(o => o.role === "prey").length);           // add
+        this.prey_counts.push(this.env.organisms.filter(o => o.role === "prey").length);
         this.predator_counts.push(this.env.organisms.filter(o => o.role === "predator").length);
+
+        const preyOrgs = this.env.organisms.filter(o => o.role === "prey" && o.living);
+        const predatorOrgs = this.env.organisms.filter(o => o.role === "predator" && o.living);
+        const preyAvg = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.lifetime, 0) / preyOrgs.length : 0;
+        const predatorAvg = predatorOrgs.length > 0 ? predatorOrgs.reduce((sum, o) => sum + o.lifetime, 0) / predatorOrgs.length : 0;
+
+        this.prey_avg_lifespan.push(preyAvg);
+        this.predator_avg_lifespan.push(predatorAvg);
         this.species_counts.push(this.numExtantSpecies());
         this.av_mut_rates.push(this.env.averageMutability());
         this.calcCellCountAverages();
         while (this.tick_record.length > this.record_size_limit) {
             this.tick_record.shift();
             this.pop_counts.shift();
+            this.prey_counts.shift();
+            this.predator_counts.shift();
+            this.prey_avg_lifespan.shift();
+            this.predator_avg_lifespan.shift();
             this.species_counts.shift();
             this.av_mut_rates.shift();
             this.av_cells.shift();
@@ -159,8 +173,10 @@ const FossilRecord = {
         record.records = {
             tick_record: this.tick_record,
             pop_counts: this.pop_counts,
-            prey_counts: this.prey_counts,         // add
+            prey_counts: this.prey_counts,
             predator_counts: this.predator_counts,
+            prey_avg_lifespan: this.prey_avg_lifespan,
+            predator_avg_lifespan: this.predator_avg_lifespan,
             species_counts: this.species_counts,
             av_mut_rates: this.av_mut_rates,
             av_cells: this.av_cells,
