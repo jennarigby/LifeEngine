@@ -88,12 +88,6 @@ class WorldEnvironment extends Environment {
             === TICK ${this.total_ticks} ===
             Prey Count: ${prey.length}
             Predator Count: ${preds.length}
-
-            Avg Prey Cells: ${avgPreyCells.toFixed(2)}
-            Avg Predator Cells: ${avgPredCells.toFixed(2)}
-
-            Max Prey Cells: ${maxPreyCells}
-            Max Predator Cells: ${maxPredCells}
             `);
 
         }

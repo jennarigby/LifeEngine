@@ -117,7 +117,7 @@ class Organism {
                 let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
 
                 if (cell && cell.owner && cell.owner.role === "predator") {
-                    console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
+                  //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
                     return true;
                 }
             }
@@ -138,6 +138,7 @@ class Organism {
             if (dist <= radius && org.role === "prey") {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
+                org.alarmTimer = 20;
 
                 console.log(
                     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
@@ -766,13 +767,6 @@ class Organism {
         let env = this.env;
 
         for (let org of env.organisms) {
-            if (this.role === "predator") {
-                this.food_collected -= Hyperparams.predatorDecayRate * this.anatomy.cells.length;
-                if (this.food_collected < 0) {
-                    this.die();
-                    return this.living;
-                }
-            }
             if (org.role === "prey" && org.alarmTimer > 0) {
                 if (env.isInSafeZone(org.c, org.r)) {
                     continue;
