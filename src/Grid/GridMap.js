@@ -7,6 +7,9 @@ class GridMap {
     }
 
     resize(cols, rows, cell_size) {
+        cols = Number(cols);
+        rows = Number(rows);
+        cell_size = Number(cell_size);
         this.grid = [];
         this.cols = cols;
         this.rows = rows;
