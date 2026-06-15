@@ -98,63 +98,82 @@ class CustomOrganismGenerator {
         let spawned = 0;
         const width = env.grid_map.cols;
         const height = env.grid_map.rows;
-        const halfWidth = Math.floor(width / 2);
-        const gridSpacing = 10;
-        const margin = 5;
+        const margin = 6;
 
-        // Calculate grid positions symmetrically
-        const cols = Math.floor((halfWidth - margin) / gridSpacing);
-        const rows = Math.floor((height - margin * 2) / gridSpacing);
-        let preyIndex = 0;
+        const clusterOffsets = [
+            [0, 0], [0, 3], [0, 6], [0, 9], [0, 12],
+            [3, 0], [3, 3], [3, 6], [3, 9], [3, 12]
+        ];
 
-        for (let ci = 0; ci < cols && preyIndex < numPrey; ci++) {
-            for (let ri = 0; ri < rows && preyIndex < numPrey; ri++) {
-                let r = margin + ri * gridSpacing;
+        const clusterAnchors = [
+            [margin + 3, margin + 3],
+            [width - margin - 5, margin + 3],
+            [margin + 3, height - margin - 15],
+            [width - margin - 5, height - margin - 15],
+            [Math.floor(width / 2) - 1, Math.floor(height / 2) - 7]
+        ];
 
-                // Left side position
-                let cLeft = margin + ci * gridSpacing;
-                // Mirror on right side
-                let cRight = width - margin - ci * gridSpacing;
+        const clusterPositions = [];
+        for (let [anchorC, anchorR] of clusterAnchors) {
+            for (let [dx, dy] of clusterOffsets) {
+                const c = anchorC + dx;
+                const r = anchorR + dy;
 
-                let preyLeft = this.createPrey(env, cLeft, r);
-                if (this.tryAddOrganism(env, preyLeft, cLeft, r)) {
-                    spawned++;
-                    preyIndex++;
+                if (c < 1 || c > width - 2 || r < 1 || r > height - 2) {
+                    continue;
                 }
-
-                if (preyIndex < numPrey) {
-                    let preyRight = this.createPrey(env, cRight, r);
-                    if (this.tryAddOrganism(env, preyRight, cRight, r)) {
-                        spawned++;
-                        preyIndex++;
-                    }
-                }
+                clusterPositions.push([c, r]);
             }
         }
 
-        // One predator in each corner
-        const cornerPositions = [
-            [margin, margin],
-            [width - margin, margin],
-            [margin, height - margin],
-            [width - margin, height - margin],
+        const targetPrey = Math.min(numPrey, clusterPositions.length);
+        for (let i = 0; i < targetPrey; i++) {
+            const [c, r] = clusterPositions[i];
+            const prey = this.createPrey(env, c, r);
+            if (this.tryAddOrganism(env, prey, c, r)) {
+                spawned++;
+            } else {
+                console.warn(`Failed to place prey at deterministic position (${c}, ${r})`);
+            }
+        }
+
+        // Fixed predator positions, separated from prey clusters
+        const predatorPositions = [
+            [Math.floor(width / 2), margin + 2],
+            [Math.floor(width / 2), height - margin - 3],
+            [margin + 2, Math.floor(height / 4)],
+            [width - margin - 3, Math.floor((height * 3) / 4)],
+            [margin + 2, Math.floor((height * 3) / 4)]
         ];
 
-        for (let i = 0; i < Math.min(numPredators, cornerPositions.length); i++) {
-            let [c, r] = cornerPositions[i];
+        const fallbackOffsets = [
+            [1, 0], [-1, 0], [0, 1], [0, -1],
+            [2, 0], [-2, 0], [0, 2], [0, -2]
+        ];
+
+        for (let i = 0; i < Math.min(numPredators, predatorPositions.length); i++) {
+            let [c, r] = predatorPositions[i];
             let predator = this.createPredator(env, c, r);
             if (this.tryAddOrganism(env, predator, c, r)) {
                 spawned++;
                 continue;
             }
-            let fallback = this.findValidPosition(env, 200);
-            if (fallback) {
-                let [fc, fr] = fallback;
+
+            // try nearby deterministic alternate spots if the anchor is occupied
+            for (let [dx, dy] of fallbackOffsets) {
+                let fc = Math.max(0, Math.min(width - 1, c + dx));
+                let fr = Math.max(0, Math.min(height - 1, r + dy));
                 let predator2 = this.createPredator(env, fc, fr);
-                if (this.tryAddOrganism(env, predator2, fc, fr)) spawned++;
+                if (this.tryAddOrganism(env, predator2, fc, fr)) {
+                    spawned++;
+                    break;
+                }
             }
         }
 
+        if (spawned < numPrey + numPredators) {
+            console.warn(`Spawned only ${spawned} organisms out of requested ${numPrey + numPredators}`);
+        }
         console.log("Spawned organisms:", spawned);
     }
 }
