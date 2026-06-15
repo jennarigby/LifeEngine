@@ -21,20 +21,19 @@ class Organism {
         this.move_count = 0;
         this.move_range = 4;
         this.ignore_brain_for = 0;
-        this.mutability = 5;
+        this.mutability = 1;
         this.damage = 0;
         this.brain = new Brain(this);
         if (parent != null) {
             this.inherit(parent);
-        }
-        if (parent != null) {
-            this.inherit(parent);
         } else {
             this.role = "prey"; // only set default if no parent
+            
         }
 
         if (this.role === "predator") {
             this.food_collected = Hyperparams.predatorStartingFood;
+            
         }
 
         // Starvation tracking (ticks since last meal)
@@ -65,24 +64,24 @@ class Organism {
 
         if (this.role === "prey") {
             // Core body
-        this.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
+            this.anatomy.addDefaultCell(CellStates.mouth, 0, 0);
 
-        // Movement
-        this.anatomy.addDefaultCell(CellStates.mover, 1, 0);
-             // Four eyes facing all directions
-        this.anatomy.addDefaultCell(CellStates.eye, 0, -1);
-        this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
-        this.anatomy.addDefaultCell(CellStates.eye, -1, 0);
-        
+            // Movement
+            this.anatomy.addDefaultCell(CellStates.mover, 1, 0);
+            // Four eyes facing all directions
+            this.anatomy.addDefaultCell(CellStates.eye, 0, -1);
+            this.anatomy.addDefaultCell(CellStates.eye, 0, 1);
+            this.anatomy.addDefaultCell(CellStates.eye, -1, 0);
 
-        // Set eye directions
-        const eyeDirections = [Directions.up, Directions.down, Directions.left, Directions.right];
-        let eyeIndex = 0;
-        for (let cell of this.anatomy.cells) {
-            if (cell.state.name === CellStates.eye.name) {
-                cell.direction = eyeDirections[eyeIndex++];
+
+            // Set eye directions
+            const eyeDirections = [Directions.up, Directions.down, Directions.left, Directions.right];
+            let eyeIndex = 0;
+            for (let cell of this.anatomy.cells) {
+                if (cell.state.name === CellStates.eye.name) {
+                    cell.direction = eyeDirections[eyeIndex++];
+                }
             }
-        }
         }
 
         if (this.role === "predator") {
@@ -104,6 +103,12 @@ class Organism {
 
         // identity
         this.species = parent.species;
+        if (this.role === "prey") {
+            let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
+            this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
+        } else {
+            this.alarmProbability = 0;
+        }
 
 
 
@@ -117,7 +122,7 @@ class Organism {
                 let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
 
                 if (cell && cell.owner && cell.owner.role === "predator") {
-                  //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
+                    //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
                     return true;
                 }
             }
@@ -174,6 +179,7 @@ class Organism {
 
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
+
         if (Hyperparams.rotationEnabled) {
             org.rotation = Directions.getRandomDirection();
         }
@@ -500,7 +506,7 @@ class Organism {
             return this.living;
         }
 
-        
+
 
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
@@ -508,11 +514,11 @@ class Organism {
                 let predatorNearby = this.detectPredator();
 
                 //Alarm call sent if predators are nearby
-                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0) {
+                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability) {
                     this.isCallingAlarm = true;
                     this.alarmCooldown = 10;
 
-                    console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm`);
+                    console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
                 } else {
                     this.isCallingAlarm = false;
                 }
@@ -767,7 +773,7 @@ class Organism {
         let env = this.env;
 
         for (let org of env.organisms) {
-            if (org.role === "prey" && org.alarmTimer > 0) {
+            if (org.role === "prey" && org.isCallingAlarm && org.living) {
                 if (env.isInSafeZone(org.c, org.r)) {
                     continue;
                 }

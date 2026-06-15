@@ -259,6 +259,7 @@ class ControlPanel {
             this.setPaused(true);
             if (fill_window) {
                 this.engine.env.resizeFillWindow(cell_size);
+                console.log(`Fit to screen grid: cols=${this.engine.env.num_cols}, rows=${this.engine.env.num_rows}, cell_size=${cell_size}`);
             }
             else {
                 var cols = $('#col-input').val();
