@@ -49,22 +49,15 @@ class ChartController {
         let data_points = this.data[0].dataPoints;
         let newest_t = -1;
         if (data_points.length>0) {
-            newest_t = this.data[0].dataPoints[data_points.length-1].x;
+            newest_t = data_points[data_points.length-1].x;
         }
         let to_add = 0;
         let cur_t = FossilRecord.tick_record[record_size-1];
-        // first count up the number of new datapoints the chart is missing
         while (cur_t !== newest_t) {
             to_add++;
-            cur_t = FossilRecord.tick_record[record_size-to_add-1]
+            cur_t = FossilRecord.tick_record[record_size-to_add-1];
         }
-        // then add them in order
-        this.addNewest(to_add)
-
-        // remove oldest datapoints until the chart is the same size as the saved records
-        while (data_points.length > FossilRecord.tick_record.length) {
-            this.removeOldest();
-        }
+        this.addNewest(to_add);
     }
 
     addNewest(to_add) {

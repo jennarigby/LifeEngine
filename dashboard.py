@@ -69,23 +69,26 @@ def smooth_series(series, window):
 
 # ── Summary stats ─────────────────────────────────────────────────────────────
 st.header("Summary Statistics")
-cols = st.columns(len(runs))
-for i, run in enumerate(runs):
-    with cols[i]:
-        st.subheader(run["name"])
-        max_prey = max(run["prey"]) if run["prey"] else 0
-        max_pred = max(run["predators"]) if run["predators"] else 0
-        final_alarm = run["alarm_prob"][-1] if run["alarm_prob"] else 0
-        final_prey = run["prey"][-1] if run["prey"] else 0
-        final_pred = run["predators"][-1] if run["predators"] else 0
-        total_ticks = run["ticks"][-1] if run["ticks"] else 0
 
-        st.metric("Total ticks", f"{total_ticks:,}")
-        st.metric("Peak prey", max_prey)
-        st.metric("Peak predators", max_pred)
-        st.metric("Final prey", final_prey)
-        st.metric("Final predators", final_pred)
-        st.metric("Final alarm probability", f"{final_alarm:.3f}")
+summary_data = []
+
+for run in runs:
+    summary_data.append({
+        "Run": run["name"],
+        "Ticks": run["ticks"][-1] if run["ticks"] else 0,
+        "Peak Prey": max(run["prey"]) if run["prey"] else 0,
+        "Peak Predators": max(run["predators"]) if run["predators"] else 0,
+        "Final Prey": run["prey"][-1] if run["prey"] else 0,
+        "Final Predators": run["predators"][-1] if run["predators"] else 0,
+        "Final Alarm p": round(run["alarm_prob"][-1], 3)
+            if run["alarm_prob"] else 0
+    })
+
+st.dataframe(
+    pd.DataFrame(summary_data),
+    use_container_width=True,
+    hide_index=True
+)
 
 # ── Population chart ──────────────────────────────────────────────────────────
 st.header("Population Over Time")

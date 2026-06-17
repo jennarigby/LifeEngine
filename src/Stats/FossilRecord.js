@@ -10,7 +10,7 @@ const FossilRecord = {
         // if an organism has fewer than this cumulative pop, discard them on extinction
         this.min_discard = 10;
 
-        this.record_size_limit = 500; // store this many data points
+        this.record_size_limit = null; // keep full history; do not truncate chart data
     },
 
     setEnv: function (env) {
@@ -106,18 +106,20 @@ const FossilRecord = {
         const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmProbability, 0) / preyOrgs.length : 0;
         this.av_alarm_probs.push(avgAlarm);
         this.calcCellCountAverages();
-        while (this.tick_record.length > this.record_size_limit) {
-            this.tick_record.shift();
-            this.pop_counts.shift();
-            this.prey_counts.shift();
-            this.predator_counts.shift();
-            this.prey_avg_lifespan.shift();
-            this.predator_avg_lifespan.shift();
-            this.species_counts.shift();
-            this.av_mut_rates.shift();
-            this.av_alarm_probs.shift();
-            this.av_cells.shift();
-            this.av_cell_counts.shift();
+        if (this.record_size_limit != null) {
+            while (this.tick_record.length > this.record_size_limit) {
+                this.tick_record.shift();
+                this.pop_counts.shift();
+                this.prey_counts.shift();
+                this.predator_counts.shift();
+                this.prey_avg_lifespan.shift();
+                this.predator_avg_lifespan.shift();
+                this.species_counts.shift();
+                this.av_mut_rates.shift();
+                this.av_alarm_probs.shift();
+                this.av_cells.shift();
+                this.av_cell_counts.shift();
+            }
         }
     },
 
