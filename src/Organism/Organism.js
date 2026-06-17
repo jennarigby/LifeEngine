@@ -28,7 +28,7 @@ class Organism {
             this.inherit(parent);
         } else {
             this.role = "prey"; // only set default if no parent
-            
+            this.alarmProbability = 0.5; // initial alarm probability for first generation
         }
 
         if (this.role === "predator") {

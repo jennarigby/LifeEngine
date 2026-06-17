@@ -1,6 +1,7 @@
 const Hyperparams = require("../Hyperparameters");
 const Modes = require("./ControlModes");
 const StatsPanel = require("../Stats/StatsPanel");
+const FossilRecord = require("../Stats/FossilRecord");
 const WorldConfig = require("../WorldConfig");
 const LoadController = require("./LoadController");
 const { ColorScheme, color_scheme_names } = require("../Rendering/ColorScheme");
@@ -295,6 +296,19 @@ class ControlPanel {
             let downloadEl = document.getElementById('download-el');
             downloadEl.setAttribute("href", data);
             downloadEl.setAttribute("download", $('#save-env-name').val() + ".json");
+            downloadEl.click();
+            if (was_running)
+                this.setPaused(false);
+        });
+        $('#save-run').click(() => {
+            let was_running = this.engine.running;
+            this.setPaused(true);
+            let runData = FossilRecord.serialize();
+            let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(runData));
+            let downloadEl = document.getElementById('download-el');
+            let filename = $('#save-run-name').val() || `run-${this.engine.env.total_ticks}`;
+            downloadEl.setAttribute("href", data);
+            downloadEl.setAttribute("download", filename + ".json");
             downloadEl.click();
             if (was_running)
                 this.setPaused(false);
