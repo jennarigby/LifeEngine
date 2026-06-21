@@ -27,6 +27,7 @@ class WorldEnvironment extends Environment {
         this.reset_count = 0;
         this.total_ticks = 0;
         this.data_update_rate = 100;
+        this._autoStopped = false;
         this.safeZones = [];
         FossilRecord.setEnv(this);
         this.createSafeZone();
@@ -103,10 +104,23 @@ class WorldEnvironment extends Environment {
             this.generateFood();
         }
         this.total_ticks++;
-        if (WorldConfig.pause_on_predator_extinction) {
-            let predatorCount = this.organisms.filter(o => o.role === "predator").length;
-            if (predatorCount === 0 && this.organisms.length > 0) {
-                $('.pause-button')[0].click();
+        // Optionally stop at a specified tick value
+        if (WorldConfig.stop_on_tick && WorldConfig.stop_tick_value > 0) {
+            if (this.total_ticks >= WorldConfig.stop_tick_value) {
+                if (!this._autoStopped) {
+                    console.log(`[AutoStop] total_ticks=${this.total_ticks}, stop_on_tick=${WorldConfig.stop_on_tick}, stop_tick_value=${WorldConfig.stop_tick_value}`);
+                    // Stop the engine directly and clear any accumulated time so the current
+                    // packed update loop doesn't continue executing more steps.
+                    try {
+                        if (this.engine && typeof this.engine.stop === 'function') {
+                            this.engine.stop();
+                            this.engine.accum_ms = 0;
+                        }
+                    } catch (e) {
+                        console.error('Failed to stop engine:', e);
+                    }
+                    this._autoStopped = true;
+                }
             }
         }
         if (this.total_ticks % this.data_update_rate == 0) {
@@ -125,7 +139,7 @@ class WorldEnvironment extends Environment {
 
         const prey = this.organisms.filter(o => o.role === "prey" && o.living).length;
         const predators = this.organisms.filter(o => o.role === "predator" && o.living).length;
-        console.log(`[POP] predators=${predators}, prey=${prey}`);
+        //console.log(`[POP] predators=${predators}, prey=${prey}`);
     }
 
     renderFull() {
@@ -301,6 +315,8 @@ class WorldEnvironment extends Environment {
         if (confirm_reset && !confirm('The current environment will be lost. Proceed?'))
             return false;
         let restart = false;
+        // clear auto-stop so stop-at-tick can trigger again after a reset
+        this._autoStopped = false;
         if (this.engine.running) {
             this.engine.last_fps = this.engine.fps;
             this.engine.stop();

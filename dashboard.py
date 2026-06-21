@@ -67,6 +67,9 @@ def smooth_series(series, window):
     s = pd.Series(series)
     return s.rolling(window, min_periods=1).mean().tolist()
 
+def avg(series):
+    return sum(series) / len(series) if series else 0
+
 # ── Summary stats ─────────────────────────────────────────────────────────────
 st.header("Summary Statistics")
 
@@ -76,10 +79,10 @@ for run in runs:
     summary_data.append({
         "Run": run["name"],
         "Ticks": run["ticks"][-1] if run["ticks"] else 0,
+        "Avg Prey": round(avg(run["prey"]), 1),
+        "Avg Predators": round(avg(run["predators"]), 1),
         "Peak Prey": max(run["prey"]) if run["prey"] else 0,
         "Peak Predators": max(run["predators"]) if run["predators"] else 0,
-        "Final Prey": run["prey"][-1] if run["prey"] else 0,
-        "Final Predators": run["predators"][-1] if run["predators"] else 0,
         "Final Alarm p": round(run["alarm_prob"][-1], 3)
             if run["alarm_prob"] else 0
     })

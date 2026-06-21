@@ -28,7 +28,7 @@ class Organism {
             this.inherit(parent);
         } else {
             this.role = "prey"; // only set default if no parent
-            this.alarmProbability = 0.5; // initial alarm probability for first generation
+            this.alarmProbability = 0.75; // initial alarm probability for first generation
         }
 
         if (this.role === "predator") {
@@ -145,9 +145,9 @@ class Organism {
                 org.alarmSource = { c: this.c, r: this.r };
                 org.alarmTimer = 20;
 
-                console.log(
-                    `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
-                );
+                // console.log(
+                //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
+                // );
             }
         }
     }
@@ -476,7 +476,7 @@ class Organism {
             const starvationThreshold = Math.max(10, Math.floor(Hyperparams.predatorStarvationBase + this.lifetime * Hyperparams.predatorStarvationAgeFactor));
             if (this.ticksSinceMeal > starvationThreshold) {
                 this.die();
-                console.log(`Died of starvation.` + this.ticksSinceMeal);
+                //console.log(`Died of starvation.` + this.ticksSinceMeal);
                 return this.living;
             }
         }
@@ -518,7 +518,7 @@ class Organism {
                     this.isCallingAlarm = true;
                     this.alarmCooldown = 10;
 
-                    console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
+                    //console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
                 } else {
                     this.isCallingAlarm = false;
                 }

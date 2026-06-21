@@ -242,9 +242,16 @@ class ControlPanel {
     }
 
     defineWorldControls() {
-        $('#pause-predator-extinct').change(function () {
-            WorldConfig.pause_on_predator_extinction = this.checked;
+        // Stop at entered ticks option
+        $('#stop-at-ticks').change(function () {
+            WorldConfig.stop_on_tick = this.checked;
         });
+        $('#stop-at-ticks-value').change(function () {
+            WorldConfig.stop_tick_value = parseInt($('#stop-at-ticks-value').val()) || 0;
+        });
+        // initialize UI from config
+        $('#stop-at-ticks').prop('checked', WorldConfig.stop_on_tick);
+        $('#stop-at-ticks-value').val(WorldConfig.stop_tick_value);
         $('#fill-window').change(function () {
             if (this.checked)
                 $('.col-row-input').css('display', 'none');
