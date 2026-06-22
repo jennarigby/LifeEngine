@@ -25,17 +25,8 @@ class Organism {
         this.damage = 0;
         this.brain = new Brain(this);
         this.lineageId = this.generateLineageId();
+        this.id = this.generateId(); // unique ID for this specific organism
 
-        if (parent != null) {
-            this.inherit(parent);
-        } else {
-            this.role = "prey"; // only set default if no parent
-            this.alarmProbability = 0.75; // initial alarm probability for first generation
-        }
-        if (this.role === "predator") {
-            this.food_collected = Hyperparams.predatorStartingFood;
-
-        }
         if (parent != null) {
             this.inherit(parent);
             this.parentId = parent.id;
@@ -47,7 +38,11 @@ class Organism {
             this.parentId = null;
             this.generation = 0;
         }
-        this.id = this.generateId(); // unique ID for this specific organism
+
+        if (this.role === "predator") {
+            this.food_collected = Hyperparams.predatorStartingFood;
+
+        }
 
         // Starvation tracking (ticks since last meal)
         this.ticksSinceMeal = 0;
@@ -170,7 +165,7 @@ class Organism {
             if (dist <= radius && org.role === "prey") {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
-                org.alarmTimer = 20;
+                org.alarmTimer = 30;
 
                 // console.log(
                 //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
@@ -540,6 +535,11 @@ class Organism {
             if (Hyperparams.alarmSignallingEnabled) {
                 let predatorNearby = this.detectPredator();
 
+                if (predatorNearby) {
+                    let kinNearby = this.detectKin(30, 0.25);
+                    console.log(`[KIN] Prey at (${this.c},${this.r}) predator nearby, kinNearby=${kinNearby}, p=${this.alarmProbability.toFixed(2)}`);
+                }
+
                 //Alarm call sent if predators and kin are nearby
                 if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability && this.detectKin()) {
                     this.isCallingAlarm = true;
@@ -603,11 +603,11 @@ class Organism {
                     } else {
                         let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
                         let preyTarget = this.detectPrey();
-
                         this.target = alarmTarget || preyTarget;
                         this.targetType = alarmTarget ? "alarm" : (preyTarget ? "prey" : null);
                         this.targetTimer = this.target ? 50 : 0;
                     }
+
 
                     // CHASE ONLY 
                     if (this.target) {
@@ -717,6 +717,10 @@ class Organism {
 
                 // MOVE 
                 let moved = this.attemptMove();
+
+                if (this.role === "prey" && this.alarmTimer > 0) {
+                    this.attemptMove(); // second move this tick to flee faster
+                }
 
                 if (!moved) {
                     let rotated = this.attemptRotate();
@@ -842,7 +846,7 @@ class Organism {
         return 0; // no shared ancestry within tracked depth
     }
 
-    detectKin(radius = 25, threshold = 0.25) {
+    detectKin(radius = 30, threshold = 0.25) {
         let env = this.env;
         for (let dx = -radius; dx <= radius; dx++) {
             for (let dy = -radius; dy <= radius; dy++) {
