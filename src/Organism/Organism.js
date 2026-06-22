@@ -24,17 +24,30 @@ class Organism {
         this.mutability = 1;
         this.damage = 0;
         this.brain = new Brain(this);
+        this.lineageId = this.generateLineageId();
+
         if (parent != null) {
             this.inherit(parent);
         } else {
             this.role = "prey"; // only set default if no parent
             this.alarmProbability = 0.75; // initial alarm probability for first generation
         }
-
         if (this.role === "predator") {
             this.food_collected = Hyperparams.predatorStartingFood;
-            
+
         }
+        if (parent != null) {
+            this.inherit(parent);
+            this.parentId = parent.id;
+            this.generation = parent.generation + 1;
+        } else {
+            this.role = "prey";
+            this.alarmProbability = 0.75;
+            this.lineageId = this.generateLineageId();
+            this.parentId = null;
+            this.generation = 0;
+        }
+        this.id = this.generateId(); // unique ID for this specific organism
 
         // Starvation tracking (ticks since last meal)
         this.ticksSinceMeal = 0;
@@ -53,10 +66,19 @@ class Organism {
         this.targetTimer = 0;
     }
 
+    generateLineageId() {
+        return `lineage_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    }
+
+    generateId() {
+        return `org_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    }
+
     inherit(parent) {
 
         // ensure role consistency
         this.role = parent.role;
+        this.lineageId = parent.lineageId;
 
         // Wipe any existing structure
         this.anatomy.clear();
@@ -110,9 +132,14 @@ class Organism {
             this.alarmProbability = 0;
         }
 
+        this.parentId = parent.id;
+        this.generation = parent.generation + 1;
 
+        // keep a short ancestor chain (last N generations) for relatedness calc
+        this.ancestors = [...(parent.ancestors || []), parent.id].slice(-4);
 
     }
+
 
     detectPredator(radius = 15) {
         let env = this.env;
@@ -789,6 +816,49 @@ class Organism {
         return null;
     }
 
+    calcRelatedness(other) {
+        if (this === other) return 1;
+
+        // direct parent-child = 0.5
+        if (this.parentId === other.id || other.parentId === this.id) return 0.5;
+
+        // siblings share the same parent = 0.5
+        if (this.parentId && this.parentId === other.parentId) return 0.5;
+
+        // check shared ancestors for cousins etc.
+        let myAncestors = this.ancestors || [];
+        let otherAncestors = other.ancestors || [];
+
+        for (let i = 0; i < myAncestors.length; i++) {
+            for (let j = 0; j < otherAncestors.length; j++) {
+                if (myAncestors[i] === otherAncestors[j]) {
+                    // shared ancestor found — relatedness halves per generation back
+                    let generationsBack = Math.max(i, j) + 1;
+                    return Math.pow(0.5, generationsBack);
+                }
+            }
+        }
+
+        return 0; // no shared ancestry within tracked depth
+    }
+
+    detectKin(radius = 25, threshold = 0.25) {
+        let env = this.env;
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+                if (cell && cell.owner && cell.owner !== this &&
+                    cell.owner.role === "prey") {
+                    let r = this.calcRelatedness(cell.owner);
+                    if (r >= threshold) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     checkForPreyCollision() {
         for (let org of this.env.organisms) {
             if (!org || org === this || org.role !== "prey" || !org.living) continue;
@@ -809,6 +879,8 @@ class Organism {
         }
         return false;
     }
+
+
 
 }
 

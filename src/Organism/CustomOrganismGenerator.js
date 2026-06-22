@@ -18,7 +18,7 @@ class CustomOrganismGenerator {
         org.anatomy.addDefaultCell(CellStates.eye, 0, -1);
         org.anatomy.addDefaultCell(CellStates.eye, 0, 1);
         org.anatomy.addDefaultCell(CellStates.eye, -1, 0);
-        
+
 
         // Set eye directions
         const eyeDirections = [Directions.up, Directions.down, Directions.left, Directions.right];
@@ -113,29 +113,35 @@ class CustomOrganismGenerator {
             [Math.floor(width / 2) - 1, Math.floor(height / 2) - 7]
         ];
 
-        const clusterPositions = [];
-        for (let [anchorC, anchorR] of clusterAnchors) {
-            for (let [dx, dy] of clusterOffsets) {
+        for (let clusterIndex = 0; clusterIndex < clusterAnchors.length; clusterIndex++) {
+            let [anchorC, anchorR] = clusterAnchors[clusterIndex];
+            let founder = this.createPrey(env, anchorC, anchorR);
+            founder.id = founder.generateId ? founder.generateId() : `founder_${Date.now()}_${Math.random()}`;
+            founder.lineageId = `lineage_${clusterIndex + 1}`;
+            founder.generation = 0;
+            founder.ancestors = [];
+
+            const preyPerCluster = Math.min(10, clusterOffsets.length); // cap at 10 per family
+
+            let placedInCluster = 0;
+            for (let i = 0; i < preyPerCluster; i++) {
+                let [dx, dy] = clusterOffsets[i];
                 const c = anchorC + dx;
                 const r = anchorR + dy;
 
-                if (c < 1 || c > width - 2 || r < 1 || r > height - 2) {
-                    continue;
-                }
-                clusterPositions.push([c, r]);
-            }
-        }
+                if (c < 1 || c > width - 2 || r < 1 || r > height - 2) continue;
 
-        const targetPrey = Math.min(numPrey, clusterPositions.length);
-        for (let i = 0; i < targetPrey; i++) {
-            const [c, r] = clusterPositions[i];
-            const prey = this.createPrey(env, c, r);
-            if (this.tryAddOrganism(env, prey, c, r)) {
-                spawned++;
-            } else {
-                console.warn(`Failed to place prey at deterministic position (${c}, ${r})`);
+                let sibling = new (require('./Organism'))(c, r, env, founder);
+                if (this.tryAddOrganism(env, sibling, c, r)) {
+                    spawned++;
+                    placedInCluster++;
+                }
             }
+            console.log(`Family at (${anchorC}, ${anchorR}) — placed ${placedInCluster} siblings`);
         }
+    
+
+
 
         // Fixed predator positions, separated from prey clusters
         const predatorPositions = [
