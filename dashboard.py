@@ -41,6 +41,7 @@ def load_run(file_bytes, filename):
         "alarm_prob": records.get("av_alarm_probs", []),
         "mut_rates": records.get("av_mut_rates", []),
         "species": records.get("species_counts", []),
+        "lineage_counts": records.get("lineage_counts", []),
     }
 
 runs = []
@@ -204,6 +205,33 @@ fig.update_layout(
     hovermode="x unified", height=400
 )
 st.plotly_chart(fig, use_container_width=True)
+
+# ── Lineage population chart ──────────────────────────────────────────────────
+st.header("Lineage Population Over Time")
+if any(run["lineage_counts"] for run in runs):
+    lineage_tabs = st.tabs([run["name"] for run in runs])
+    for tab, run in zip(lineage_tabs, runs):
+        with tab:
+            if not run["lineage_counts"]:
+                st.info("No lineage counts available for this run.")
+                continue
+            lineage_ids = sorted({lid for record in run["lineage_counts"] for lid in record.keys()})
+            fig = go.Figure()
+            for i, lid in enumerate(lineage_ids):
+                series = [record.get(lid, 0) for record in run["lineage_counts"]]
+                fig.add_trace(go.Scatter(
+                    x=run["ticks"],
+                    y=smooth_series(series, smooth),
+                    name=f"{lid}",
+                    line=dict(color=colors_prey[i % len(colors_prey)])
+                ))
+            fig.update_layout(
+                xaxis_title="Tick", yaxis_title="Organisms",
+                hovermode="x unified", height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No lineage population data available in uploaded runs.")
 
 # ── Raw data table ────────────────────────────────────────────────────────────
 st.header("Raw Data")

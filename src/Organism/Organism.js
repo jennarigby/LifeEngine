@@ -540,8 +540,8 @@ class Organism {
             if (Hyperparams.alarmSignallingEnabled) {
                 let predatorNearby = this.detectPredator();
 
-                //Alarm call sent if predators are nearby
-                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability) {
+                //Alarm call sent if predators and kin are nearby
+                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability && this.detectKin()) {
                     this.isCallingAlarm = true;
                     this.alarmCooldown = 10;
 
