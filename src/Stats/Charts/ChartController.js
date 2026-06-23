@@ -28,8 +28,12 @@ class ChartController {
 
     setMinimum() {
         var min = 0;
-        if (this.data[0].dataPoints != [])
-            min = this.data[0].dataPoints[0].x;
+        for (const series of this.data) {
+            if (series && Array.isArray(series.dataPoints) && series.dataPoints.length > 0) {
+                min = series.dataPoints[0].x || 0;
+                break;
+            }
+        }
         this.chart.options.axisX.minimum = min;
     }
 
@@ -46,18 +50,23 @@ class ChartController {
 
     updateData() {
         let record_size = FossilRecord.tick_record.length;
+        if (record_size === 0 || this.data.length === 0 || !Array.isArray(this.data[0].dataPoints)) {
+            return;
+        }
         let data_points = this.data[0].dataPoints;
         let newest_t = -1;
-        if (data_points.length>0) {
+        if (data_points.length > 0) {
             newest_t = data_points[data_points.length-1].x;
         }
         let to_add = 0;
         let cur_t = FossilRecord.tick_record[record_size-1];
-        while (cur_t !== newest_t) {
+        while (cur_t !== newest_t && record_size - to_add - 1 >= 0) {
             to_add++;
             cur_t = FossilRecord.tick_record[record_size-to_add-1];
         }
-        this.addNewest(to_add);
+        if (to_add > 0) {
+            this.addNewest(to_add);
+        }
     }
 
     addNewest(to_add) {

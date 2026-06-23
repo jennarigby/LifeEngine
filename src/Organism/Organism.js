@@ -601,16 +601,37 @@ class Organism {
 
                 // Predator brain for movement decisions - overrides prey brain if predator has a target
                 if (this.role === "predator") {
-
-                    // acquire / maintain target
-                    if (this.target && this.target.living && this.targetTimer > 0) {
-                        this.targetTimer--;
+                    // always check for alarm caller first — overrides existing target
+                    let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
+                    if (alarmTarget) {
+                        this.target = alarmTarget;
+                        this.targetType = "alarm";
+                        this.targetTimer = 50;
                     } else {
-                        let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
-                        let preyTarget = this.detectPrey();
-                        this.target = alarmTarget || preyTarget;
-                        this.targetType = alarmTarget ? "alarm" : (preyTarget ? "prey" : null);
-                        this.targetTimer = this.target ? 50 : 0;
+                        const hasTarget = this.target && this.target.living;
+                        let targetDistance = Number.POSITIVE_INFINITY;
+                        if (hasTarget) {
+                            let dx = this.target.c - this.c;
+                            let dy = this.target.r - this.r;
+                            targetDistance = Math.sqrt(dx * dx + dy * dy);
+                        }
+
+                        let targetInvalid = !hasTarget || this.targetTimer <= 0;
+                        if (!targetInvalid && this.targetType === "alarm") {
+                            targetInvalid = !this.target.isCallingAlarm || targetDistance > 20;
+                        }
+                        if (!targetInvalid && this.targetType === "prey") {
+                            targetInvalid = this.env.isInSafeZone(this.target.c, this.target.r) || targetDistance > 15;
+                        }
+
+                        if (targetInvalid) {
+                            let preyTarget = this.detectPrey();
+                            this.target = preyTarget;
+                            this.targetType = preyTarget ? "prey" : null;
+                            this.targetTimer = this.target ? 50 : 0;
+                        } else {
+                            this.targetTimer--;
+                        }
                     }
 
 
