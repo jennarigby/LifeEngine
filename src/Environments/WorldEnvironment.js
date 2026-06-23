@@ -125,7 +125,7 @@ class WorldEnvironment extends Environment {
 
         const prey = this.organisms.filter(o => o.role === "prey" && o.living).length;
         const predators = this.organisms.filter(o => o.role === "predator" && o.living).length;
-        console.log(`[POP] predators=${predators}, prey=${prey}`);
+        //console.log(`[POP] predators=${predators}, prey=${prey}`);
     }
 
     renderFull() {
@@ -150,7 +150,7 @@ class WorldEnvironment extends Environment {
 
     OriginOfLife() {
         //Spawn initial organisms (custom amount)
-        CustomOrganismGenerator.spawnPopulation(this, 50, 5);
+        CustomOrganismGenerator.spawnPopulation(this, 50, 50);
         // Register species
         for (let org of this.organisms) {
             FossilRecord.addSpecies(org, null);

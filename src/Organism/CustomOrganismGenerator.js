@@ -28,7 +28,7 @@ class CustomOrganismGenerator {
                 cell.direction = eyeDirections[eyeIndex++];
             }
         }
-        org.alarmProbability = 0.5;
+        org.alarmProbability = 0.25;
 
         return org;
     }
@@ -55,19 +55,16 @@ class CustomOrganismGenerator {
         return org;
     }
 
-    // FIND VALID POSITION
-    static findValidPosition(env, maxAttempts = 50) {
+    // FIND VALID POSITION FOR A FULL ORGANISM
+    static findValidPosition(env, org) {
         const width = env.grid_map.cols;
         const height = env.grid_map.rows;
 
-        for (let i = 0; i < maxAttempts; i++) {
-            let c = Math.floor(Math.random() * width);
-            let r = Math.floor(Math.random() * height);
-
-            let cell = env.grid_map.cellAt(c, r);
-
-            if (cell && cell.state === CellStates.empty) {
-                return [c, r];
+        for (let r = 0; r < height; r++) {
+            for (let c = 0; c < width; c++) {
+                if (org.isClear(c, r)) {
+                    return [c, r];
+                }
             }
         }
 
@@ -95,7 +92,8 @@ class CustomOrganismGenerator {
 
     // SPAWN POPULATION
     static spawnPopulation(env, numPrey, numPredators) {
-        let spawned = 0;
+        let spawnedPrey = 0;
+        let spawnedPredators = 0;
         const width = env.grid_map.cols;
         const height = env.grid_map.rows;
         const margin = 6;
@@ -131,9 +129,22 @@ class CustomOrganismGenerator {
             const [c, r] = clusterPositions[i];
             const prey = this.createPrey(env, c, r);
             if (this.tryAddOrganism(env, prey, c, r)) {
-                spawned++;
-            } else {
-                console.warn(`Failed to place prey at deterministic position (${c}, ${r})`);
+                spawnedPrey++;
+            }
+        }
+
+        let preyAttempts = 0;
+        while (spawnedPrey < numPrey && preyAttempts < numPrey * 10) {
+            preyAttempts++;
+            const prey = this.createPrey(env, 0, 0);
+            const position = this.findValidPosition(env, prey);
+            if (!position) break;
+
+            const [c, r] = position;
+            prey.c = c;
+            prey.r = r;
+            if (this.tryAddOrganism(env, prey, c, r)) {
+                spawnedPrey++;
             }
         }
 
@@ -151,28 +162,45 @@ class CustomOrganismGenerator {
             [2, 0], [-2, 0], [0, 2], [0, -2]
         ];
 
-        for (let i = 0; i < Math.min(numPredators, predatorPositions.length); i++) {
+        const targetPredators = Math.min(numPredators, predatorPositions.length);
+        for (let i = 0; i < targetPredators; i++) {
             let [c, r] = predatorPositions[i];
             let predator = this.createPredator(env, c, r);
             if (this.tryAddOrganism(env, predator, c, r)) {
-                spawned++;
+                spawnedPredators++;
                 continue;
             }
 
-            // try nearby deterministic alternate spots if the anchor is occupied
             for (let [dx, dy] of fallbackOffsets) {
                 let fc = Math.max(0, Math.min(width - 1, c + dx));
                 let fr = Math.max(0, Math.min(height - 1, r + dy));
                 let predator2 = this.createPredator(env, fc, fr);
                 if (this.tryAddOrganism(env, predator2, fc, fr)) {
-                    spawned++;
+                    spawnedPredators++;
                     break;
                 }
             }
         }
 
-        if (spawned < numPrey + numPredators) {
-            console.warn(`Spawned only ${spawned} organisms out of requested ${numPrey + numPredators}`);
+        let predatorAttempts = 0;
+        while (spawnedPredators < numPredators && predatorAttempts < numPredators * 10) {
+            predatorAttempts++;
+            const predator = this.createPredator(env, 0, 0);
+            const position = this.findValidPosition(env, predator);
+            if (!position) break;
+
+            const [c, r] = position;
+            predator.c = c;
+            predator.r = r;
+            if (this.tryAddOrganism(env, predator, c, r)) {
+                spawnedPredators++;
+            }
+        }
+
+        const spawned = spawnedPrey + spawnedPredators;
+        const requested = numPrey + numPredators;
+        if (spawned < requested) {
+            console.warn(`Spawned only ${spawned} organisms out of requested ${requested}`);
         }
         console.log("Spawned organisms:", spawned);
     }
