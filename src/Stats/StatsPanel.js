@@ -1,5 +1,6 @@
 const PopulationChart = require("./Charts/PopulationChart");
 const SpeciesChart = require("./Charts/SpeciesChart");
+const LineageChart = require("./Charts/LineageChart");
 const AvgSurvivalChart = require("./Charts/AvgSurvivalChart");
 const AlarmProbabilityChart = require("./Charts/AlarmProbabilityChart");
 const MutationChart = require("./Charts/MutationChart");
@@ -7,7 +8,7 @@ const CellsChart = require("./Charts/CellsChart");
 const FossilRecord = require("./FossilRecord");
 
 
-const ChartSelections = [PopulationChart, SpeciesChart, AvgSurvivalChart, AlarmProbabilityChart, CellsChart, MutationChart];
+const ChartSelections = [PopulationChart, SpeciesChart, LineageChart, AvgSurvivalChart, AlarmProbabilityChart, CellsChart, MutationChart];
 
 class StatsPanel {
     constructor(env) {

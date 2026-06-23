@@ -24,16 +24,24 @@ class Organism {
         this.mutability = 1;
         this.damage = 0;
         this.brain = new Brain(this);
+        this.lineageId = this.generateLineageId();
+        this.id = this.generateId(); // unique ID for this specific organism
+
         if (parent != null) {
             this.inherit(parent);
+            this.parentId = parent.id;
+            this.generation = parent.generation + 1;
         } else {
-            this.role = "prey"; // only set default if no parent
-            this.alarmProbability = 0.25; // initial alarm probability for first generation
+            this.role = "prey";
+            this.alarmProbability = 0.75;
+            this.lineageId = this.generateLineageId();
+            this.parentId = null;
+            this.generation = 0;
         }
 
         if (this.role === "predator") {
             this.food_collected = Hyperparams.predatorStartingFood;
-            
+
         }
 
         // Starvation tracking (ticks since last meal)
@@ -53,10 +61,19 @@ class Organism {
         this.targetTimer = 0;
     }
 
+    generateLineageId() {
+        return `lineage_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    }
+
+    generateId() {
+        return `org_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    }
+
     inherit(parent) {
 
         // ensure role consistency
         this.role = parent.role;
+        this.lineageId = parent.lineageId;
 
         // Wipe any existing structure
         this.anatomy.clear();
@@ -110,9 +127,14 @@ class Organism {
             this.alarmProbability = 0;
         }
 
+        this.parentId = parent.id;
+        this.generation = parent.generation + 1;
 
+        // keep a short ancestor chain (last N generations) for relatedness calc
+        this.ancestors = [...(parent.ancestors || []), parent.id].slice(-4);
 
     }
+
 
     detectPredator(radius = 15) {
         let env = this.env;
@@ -143,8 +165,11 @@ class Organism {
             if (dist <= radius && org.role === "prey") {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
-                org.alarmTimer = 20;
+                org.alarmTimer = 30;
 
+                // console.log(
+                //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
+                // );
                 // console.log(
                 //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
                 // );
@@ -477,6 +502,7 @@ class Organism {
             if (this.ticksSinceMeal > starvationThreshold) {
                 this.die();
                 //console.log(`Died of starvation.` + this.ticksSinceMeal);
+                //console.log(`Died of starvation.` + this.ticksSinceMeal);
                 return this.living;
             }
         }
@@ -513,11 +539,17 @@ class Organism {
             if (Hyperparams.alarmSignallingEnabled) {
                 let predatorNearby = this.detectPredator();
 
-                //Alarm call sent if predators are nearby
-                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability) {
+                if (predatorNearby) {
+                    let kinNearby = this.detectKin(30, 0.25);
+                    console.log(`[KIN] Prey at (${this.c},${this.r}) predator nearby, kinNearby=${kinNearby}, p=${this.alarmProbability.toFixed(2)}`);
+                }
+
+                //Alarm call sent if predators and kin are nearby
+                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability && this.detectKin()) {
                     this.isCallingAlarm = true;
                     this.alarmCooldown = 10;
 
+                    //console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
                     //console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
                 } else {
                     this.isCallingAlarm = false;
@@ -576,11 +608,11 @@ class Organism {
                     } else {
                         let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
                         let preyTarget = this.detectPrey();
-
                         this.target = alarmTarget || preyTarget;
                         this.targetType = alarmTarget ? "alarm" : (preyTarget ? "prey" : null);
                         this.targetTimer = this.target ? 50 : 0;
                     }
+
 
                     // CHASE ONLY 
                     if (this.target) {
@@ -691,6 +723,10 @@ class Organism {
                 // MOVE 
                 let moved = this.attemptMove();
 
+                if (this.role === "prey" && this.alarmTimer > 0) {
+                    this.attemptMove(); // second move this tick to flee faster
+                }
+
                 if (!moved) {
                     let rotated = this.attemptRotate();
                     if (!rotated) {
@@ -789,6 +825,49 @@ class Organism {
         return null;
     }
 
+    calcRelatedness(other) {
+        if (this === other) return 1;
+
+        // direct parent-child = 0.5
+        if (this.parentId === other.id || other.parentId === this.id) return 0.5;
+
+        // siblings share the same parent = 0.5
+        if (this.parentId && this.parentId === other.parentId) return 0.5;
+
+        // check shared ancestors for cousins etc.
+        let myAncestors = this.ancestors || [];
+        let otherAncestors = other.ancestors || [];
+
+        for (let i = 0; i < myAncestors.length; i++) {
+            for (let j = 0; j < otherAncestors.length; j++) {
+                if (myAncestors[i] === otherAncestors[j]) {
+                    // shared ancestor found — relatedness halves per generation back
+                    let generationsBack = Math.max(i, j) + 1;
+                    return Math.pow(0.5, generationsBack);
+                }
+            }
+        }
+
+        return 0; // no shared ancestry within tracked depth
+    }
+
+    detectKin(radius = 30, threshold = 0.25) {
+        let env = this.env;
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+                if (cell && cell.owner && cell.owner !== this &&
+                    cell.owner.role === "prey") {
+                    let r = this.calcRelatedness(cell.owner);
+                    if (r >= threshold) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     checkForPreyCollision() {
         for (let org of this.env.organisms) {
             if (!org || org === this || org.role !== "prey" || !org.living) continue;
@@ -809,6 +888,8 @@ class Organism {
         }
         return false;
     }
+
+
 
 }
 

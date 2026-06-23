@@ -80,6 +80,7 @@ const FossilRecord = {
         this.predator_avg_lifespan = [];
         this.pop_counts = [];
         this.species_counts = [];
+        this.lineage_counts = [];
         this.av_mut_rates = [];
         this.av_alarm_probs = [];
         this.av_cells = [];
@@ -106,6 +107,14 @@ const FossilRecord = {
         const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmProbability, 0) / preyOrgs.length : 0;
         this.av_alarm_probs.push(avgAlarm);
         this.calcCellCountAverages();
+
+        var lineageCounts = {};
+        for (let org of this.env.organisms.filter(o => o.role === "prey")) {
+            if (!org.lineageId) continue;
+            lineageCounts[org.lineageId] = (lineageCounts[org.lineageId] || 0) + 1;
+        }
+        this.lineage_counts.push(lineageCounts);
+
         if (this.record_size_limit != null) {
             while (this.tick_record.length > this.record_size_limit) {
                 this.tick_record.shift();
@@ -115,6 +124,7 @@ const FossilRecord = {
                 this.prey_avg_lifespan.shift();
                 this.predator_avg_lifespan.shift();
                 this.species_counts.shift();
+                this.lineage_counts.shift();
                 this.av_mut_rates.shift();
                 this.av_alarm_probs.shift();
                 this.av_cells.shift();
@@ -184,6 +194,7 @@ const FossilRecord = {
             prey_avg_lifespan: this.prey_avg_lifespan,
             predator_avg_lifespan: this.predator_avg_lifespan,
             species_counts: this.species_counts,
+            lineage_counts: this.lineage_counts,
             av_mut_rates: this.av_mut_rates,
             av_alarm_probs: this.av_alarm_probs,
             av_cells: this.av_cells,
@@ -204,6 +215,7 @@ const FossilRecord = {
             this[key] = record.records[key];
         }
     }
+    
 
 }
 

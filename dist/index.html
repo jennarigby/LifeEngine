@@ -151,8 +151,9 @@
 						<label for="auto-pause" title='Will override reset on extinction'>Pause on total extinction</label>
 						<input type="checkbox" id="auto-pause">
 						<br>
-						<input type="checkbox" id="pause-predator-extinct">
-						<label for="pause-predator-extinct">Pause on predator extinction</label>
+						<input type="checkbox" id="stop-at-ticks">
+						<label for="stop-at-ticks">Stop at entered ticks</label>
+						<input type="number" id="stop-at-ticks-value" min="0" value=0 step="1" style="width:100px; margin-left:8px;">
 						<br>
 						<button class='randomize-button reset-random' title="Generate many random organisms in the world.">Reset with Random Organisms</button>
 						<label for="num-random-orgs" title='Number of random organisms to generate'>Num to generate:</label>
@@ -270,8 +271,7 @@
 						<label for="chart-option">Chart: </label>
 						<select name="chart-option" id="chart-option">
 							<option value="population">Population</option>
-							<option value="species">Species</option>
-							<option value="avg-survival">Average Survival Rate</option>
+							<option value="species">Species</option>						<option value="lineage">Lineage Populations</option>							<option value="avg-survival">Average Survival Rate</option>
 							<option value="alarm-probability">Average Alarm Probability</option>
 							<option value="cell-structure">Organism Structure</option>
 							<option value="mut-rate">Mutation Rate</option>
