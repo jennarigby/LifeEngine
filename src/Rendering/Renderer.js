@@ -9,7 +9,7 @@ class Renderer {
         this.canvas = document.getElementById(canvas_id);
         this.ctx = this.canvas.getContext("2d");
         this.fillWindow(container_id)
-		this.height = this.canvas.height;
+        this.height = this.canvas.height;
         this.width = this.canvas.width;
         this.cells_to_render = new Set();
         this.cells_to_highlight = new Set();
@@ -17,7 +17,7 @@ class Renderer {
     }
 
     fillWindow(container_id) {
-        this.fillShape($('#'+container_id).height(), $('#'+container_id).width());
+        this.fillShape($('#' + container_id).height(), $('#' + container_id).width());
     }
 
     fillShape(height, width) {
@@ -29,13 +29,13 @@ class Renderer {
 
     clear() {
         this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(0, 0, this.height, this.width);
+        this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
     renderFullGrid(grid) {
         this.clearUpdates();
         for (var col of grid) {
-            for (var cell of col){
+            for (var cell of col) {
                 this.renderCell(cell);
             }
         }
@@ -50,17 +50,25 @@ class Renderer {
 
     renderCell(cell) {
         cell.state.render(this.ctx, cell, this.cell_size);
+        if (cell.owner && cell.owner.living && cell.owner.isCallingAlarm) {
+            const x = Math.round(cell.x);
+            const y = Math.round(cell.y);
+            const size = Math.round(this.cell_size);
+            this.ctx.strokeStyle = 'rgba(255, 80, 80, 0.85)';
+            this.ctx.lineWidth = Math.max(2, this.cell_size * 0.12);
+            this.ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+        }
     }
 
     renderOrganism(org) {
-        for(var org_cell of org.anatomy.cells) {
+        for (var org_cell of org.anatomy.cells) {
             var cell = org.getRealCell(org_cell);
             this.renderCell(cell);
         }
     }
 
     addToRender(cell) {
-        if (this.highlighted_cells.has(cell)){
+        if (this.highlighted_cells.has(cell)) {
             this.cells_to_highlight.add(cell);
         }
         this.cells_to_render.add(cell);
@@ -72,7 +80,7 @@ class Renderer {
             this.highlighted_cells.add(cell);
         }
         this.cells_to_highlight.clear();
-        
+
     }
 
     renderSafeZone(zoneOrZones) {
@@ -97,7 +105,7 @@ class Renderer {
     }
 
     highlightOrganism(org) {
-        for(var org_cell of org.anatomy.cells) {
+        for (var org_cell of org.anatomy.cells) {
             var cell = org.getRealCell(org_cell);
             this.cells_to_highlight.add(cell);
         }
@@ -132,7 +140,7 @@ class Renderer {
         this.highlighted_cells.add(cell);
     }
 
-    clearAllHighlights(clear_to_highlight=false) {
+    clearAllHighlights(clear_to_highlight = false) {
         for (var cell of this.highlighted_cells) {
             this.renderCell(cell);
         }
@@ -146,6 +154,27 @@ class Renderer {
         this.cells_to_render.clear();
         this.cells_to_highlight.clear();
         this.highlighted_cells.clear();
+    }
+
+    renderAlarmGlow(organisms) {
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.fillStyle = 'rgba(255, 120, 40, 0.9)';
+
+        for (const org of organisms) {
+            if (!org.isCallingAlarm || !org.living) continue;
+            for (const bodyCell of org.anatomy.cells) {
+                const cell = org.getRealCell(bodyCell);
+                if (!cell) continue;
+
+                const x = Math.round(cell.x);
+                const y = Math.round(cell.y);
+                const size = Math.round(this.cell_size);
+                this.ctx.fillRect(x, y, size, size);
+            }
+        }
+
+        this.ctx.restore();
     }
 }
 

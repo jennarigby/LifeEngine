@@ -133,9 +133,11 @@ class WorldEnvironment extends Environment {
             this.renderer.cells_to_render.clear();
             return;
         }
-        this.renderer.renderCells();
+
+        this.renderer.clear();
+        this.renderer.renderFullGrid(this.grid_map.grid);
         this.renderer.renderSafeZone(this.safeZones);
-        this.renderer.renderHighlights();
+        this.renderer.renderAlarmGlow(this.organisms);
 
         const prey = this.organisms.filter(o => o.role === "prey" && o.living).length;
         const predators = this.organisms.filter(o => o.role === "predator" && o.living).length;

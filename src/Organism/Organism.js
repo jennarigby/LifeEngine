@@ -744,10 +744,6 @@ class Organism {
                 // MOVE 
                 let moved = this.attemptMove();
 
-                if (this.role === "prey" && this.alarmTimer > 0) {
-                    this.attemptMove(); // second move this tick to flee faster
-                }
-
                 if (!moved) {
                     let rotated = this.attemptRotate();
                     if (!rotated) {
