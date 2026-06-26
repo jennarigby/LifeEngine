@@ -52,6 +52,7 @@ class Organism {
         this.isCallingAlarm = false;
         this.heardAlarm = false;
         this.alarmCooldown = 0;
+        this.alarmCallTimer = 0;
         this.alarmTimer = 0;
         this.alarmSource = null;
 
@@ -170,9 +171,7 @@ class Organism {
                 // console.log(
                 //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
                 // );
-                // console.log(
-                //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
-                // );
+
             }
         }
     }
@@ -198,9 +197,7 @@ class Organism {
 
     reproduce() {
         const foodCost = this.foodNeeded();
-        // if (this.role === "prey") {
-        //     console.log(`[PREY][REPRODUCE] Organism at (${this.c}, ${this.r}) reproducing - Food cost: ${foodCost}, Remaining: ${Math.max(0, this.food_collected - foodCost)}`);
-        // }
+
 
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
@@ -338,6 +335,7 @@ class Organism {
     }
 
     attemptMove() {
+
         var direction = Directions.scalars[this.direction];
         var direction_c = direction[0];
         var direction_r = direction[1];
@@ -426,6 +424,7 @@ class Organism {
 
     //Updated version of isClear to allow predators to move onto food 
     isClear(col, row, rotation = this.rotation, forReproduction = false) {
+
         for (var loccell of this.anatomy.cells) {
             var cell = this.getRealCell(loccell, col, row, rotation);
             if (cell == null) {
@@ -537,27 +536,42 @@ class Organism {
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
             if (Hyperparams.alarmSignallingEnabled) {
+                console.log(
+                    "CALLING:",
+                    this.isCallingAlarm,
+                    "COOLDOWN:",
+                    this.alarmCooldown
+                );
                 let predatorNearby = this.detectPredator();
 
                 if (predatorNearby) {
                     let kinNearby = this.detectKin(30, 0.25);
-                    console.log(`[KIN] Prey at (${this.c},${this.r}) predator nearby, kinNearby=${kinNearby}, p=${this.alarmProbability.toFixed(2)}`);
+                    //console.log(`[KIN] Prey at (${this.c},${this.r}) predator nearby, kinNearby=${kinNearby}, p=${this.alarmProbability.toFixed(2)}`);
                 }
 
                 //Alarm call sent if predators and kin are nearby
-                if (predatorNearby && this.alarmCooldown === 0 && this.alarmTimer === 0 && Math.random() < this.alarmProbability && this.detectKin()) {
-                    this.isCallingAlarm = true;
+                if (
+                    predatorNearby &&
+                    this.alarmCooldown === 0 &&
+                    Math.random() < this.alarmProbability &&
+                    this.detectKin() &&
+                    !this.heardAlarm &&
+                    !this.env.isInSafeZone(this.c, this.r)
+                ) {
+                    this.alarmCallTimer = 50;
                     this.alarmCooldown = 10;
+                }
 
-                    //console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
-                    //console.log(`[ALARM][CALL] Prey at (${this.c}, ${this.r}) broadcasting alarm (prob=${this.alarmProbability.toFixed(2)})`);
+                if (this.alarmCallTimer > 0) {
+                    this.alarmCallTimer--;
+                    this.isCallingAlarm = true;
                 } else {
                     this.isCallingAlarm = false;
                 }
 
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
-                    this.broadcastAlarm(30);
+                    this.broadcastAlarm(40);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
 
@@ -602,41 +616,37 @@ class Organism {
                 // Predator brain for movement decisions - overrides prey brain if predator has a target
                 if (this.role === "predator") {
                     // always check for alarm caller first — overrides existing target
-                    let alarmTarget = Hyperparams.alarmSignallingEnabled ? this.detectAlarmCaller() : null;
+                    let alarmTarget = Hyperparams.alarmSignallingEnabled
+                        ? this.detectAlarmCaller()
+                        : null;
+
                     if (alarmTarget) {
                         this.target = alarmTarget;
                         this.targetType = "alarm";
-                        this.targetTimer = 50;
+                        this.targetTimer = 40;
                     } else {
                         const hasTarget = this.target && this.target.living;
-                        let targetDistance = Number.POSITIVE_INFINITY;
-                        if (hasTarget) {
-                            let dx = this.target.c - this.c;
-                            let dy = this.target.r - this.r;
-                            targetDistance = Math.sqrt(dx * dx + dy * dy);
-                        }
 
-                        let targetInvalid = !hasTarget || this.targetTimer <= 0;
-                        if (!targetInvalid && this.targetType === "alarm") {
-                            targetInvalid = !this.target.isCallingAlarm || targetDistance > 20;
-                        }
-                        if (!targetInvalid && this.targetType === "prey") {
-                            targetInvalid = this.env.isInSafeZone(this.target.c, this.target.r) || targetDistance > 15;
-                        }
-
-                        if (targetInvalid) {
+                        if (!hasTarget || this.targetTimer <= 0 || this.targetType !== "prey") {
                             let preyTarget = this.detectPrey();
-                            this.target = preyTarget;
-                            this.targetType = preyTarget ? "prey" : null;
-                            this.targetTimer = this.target ? 50 : 0;
+                            this.target = preyTarget || this.target || null;
+                            this.targetType = preyTarget ? "prey" : this.targetType;
+                            this.targetTimer = preyTarget ? 50 : 0;
                         } else {
                             this.targetTimer--;
                         }
                     }
 
-
+                    if (!this.target) {
+                        // fallback behavior: wander instead of freezing
+                        if (Math.random() < 0.2) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
+                        this.attemptMove();
+                        return this.living;
+                    }
                     // CHASE ONLY 
-                    if (this.target) {
+                    if (this.target && this.target.living) {
                         let dx = this.target.c - this.c;
                         let dy = this.target.r - this.r;
                         if (Math.abs(dx) > Math.abs(dy)) {
@@ -671,17 +681,27 @@ class Organism {
                 }
 
                 // PREY BRAIN 
+                // PREY BRAIN 
                 if (this.role === "prey" && this.anatomy.has_eyes) {
                     let result = this.brain.decide();
                     brain_decision = result.decision;
                     brain_direction = result.move_direction;
                 }
 
-                // ALARM OVERRIDE - if prey has heard an alarm, override brain decision to move away from the source of the alarm
-                if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
+                // ALARM MOVEMENT OVERRIDE - mutually exclusive, caller takes priority
+                if (this.role === "prey" && this.isCallingAlarm) {
+                    // decoy: run away from kin
+                    let nearestKin = this.detectNearestKin();
+                    if (nearestKin) {
+                        let dx = this.c - nearestKin.c;
+                        let dy = this.r - nearestKin.r;
+                        this.changeDirection(Directions.fromVector(dx, dy));
+                        brain_decision = Decision.neutral;
+                    }
+                } else if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
+                    // hearer: flee away from alarm source
                     let dx = this.c - this.alarmSource.c;
                     let dy = this.r - this.alarmSource.r;
-
                     this.changeDirection(Directions.fromVector(dx, dy));
                     brain_decision = Decision.neutral;
                 }
@@ -752,6 +772,9 @@ class Organism {
                 } else {
                     this.move_count++;
                 }
+                if (this.role === "predator") {
+                    this.checkForPreyCollision();
+                }
 
             }
         }
@@ -820,7 +843,7 @@ class Organism {
     }
 
     //For predators: detect alarm calls from prey and pursue that prey instead 
-    detectAlarmCaller(radius = 20) {
+    detectAlarmCaller(radius = 30) {
         if (!Hyperparams.alarmSignallingEnabled) return null;
 
         let env = this.env;
@@ -883,6 +906,30 @@ class Organism {
             }
         }
         return false;
+    }
+
+    detectNearestKin(radius = 30, threshold = 0.25) {
+        let env = this.env;
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+                if (cell && cell.owner && cell.owner !== this &&
+                    cell.owner.role === "prey") {
+                    let r = this.calcRelatedness(cell.owner);
+                    if (r >= threshold) {
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < nearestDist) {
+                            nearestDist = dist;
+                            nearest = cell.owner;
+                        }
+                    }
+                }
+            }
+        }
+        return nearest;
     }
 
     checkForPreyCollision() {
