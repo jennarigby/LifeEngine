@@ -16,9 +16,9 @@ class WorldEnvironment extends Environment {
         super();
         this.engine = engine;
         this.renderer = new Renderer('env-canvas', 'env', cell_size);
+        this.num_rows = WorldConfig.grid_rows || Math.ceil(this.renderer.height / cell_size);
+        this.num_cols = WorldConfig.grid_cols || Math.ceil(this.renderer.width / cell_size);
         this.controller = new EnvironmentController(this, this.renderer.canvas);
-        this.num_rows = Math.ceil(this.renderer.height / cell_size);
-        this.num_cols = Math.ceil(this.renderer.width / cell_size);
         this.grid_map = new GridMap(this.num_cols, this.num_rows, cell_size);
         this.organisms = [];
         this.walls = [];
@@ -35,7 +35,7 @@ class WorldEnvironment extends Environment {
 
     createSafeZone() {
         var width = Math.max(4, Math.floor(this.grid_map.cols * 0.15));
-        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.15));
+        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.25));
         this.safeZones = [
             {
                 cMin: 1,
@@ -85,11 +85,11 @@ class WorldEnvironment extends Environment {
                     ? Math.max(...prey.map(p => p.anatomy.cells.length))
                     : 0;
 
-            console.log(`
-            === TICK ${this.total_ticks} ===
-            Prey Count: ${prey.length}
-            Predator Count: ${preds.length}
-            `);
+            // console.log(`
+            // === TICK ${this.total_ticks} ===
+            // Prey Count: ${prey.length}
+            // Predator Count: ${preds.length}
+            // `);
 
         }
         var to_remove = [];

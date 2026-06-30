@@ -28,7 +28,7 @@ class CustomOrganismGenerator {
                 cell.direction = eyeDirections[eyeIndex++];
             }
         }
-        org.alarmProbability = 0.75;
+        org.alarmProbability = 0;
 
         return org;
     }

@@ -33,7 +33,7 @@ class Organism {
             this.generation = parent.generation + 1;
         } else {
             this.role = "prey";
-            this.alarmProbability = 0.75;
+            this.alarmProbability = 0;
             this.lineageId = this.generateLineageId();
             this.parentId = null;
             this.generation = 0;
@@ -60,6 +60,7 @@ class Organism {
         this.target = null;
         this.targetType = null;
         this.targetTimer = 0;
+
     }
 
     generateLineageId() {
@@ -137,18 +138,29 @@ class Organism {
     }
 
 
+    // detectPredator(radius = 15) {
+    //     let env = this.env;
+
+    //     for (let dx = -radius; dx <= radius; dx++) {
+    //         for (let dy = -radius; dy <= radius; dy++) {
+    //             let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+
+    //             if (cell && cell.owner && cell.owner.role === "predator") {
+    //                 //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
+    //                 return true;
+    //             }
+    //         }
+    //     }
+    //     return false;
+    // }
+
     detectPredator(radius = 15) {
-        let env = this.env;
-
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-
-                if (cell && cell.owner && cell.owner.role === "predator") {
-                    //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
-                    return true;
-                }
-            }
+        let radiusSq = radius * radius;
+        for (let org of this.env.organisms) {
+            if (org.role !== "predator" || !org.living) continue;
+            let dx = org.c - this.c;
+            let dy = org.r - this.r;
+            if (dx * dx + dy * dy <= radiusSq) return true;
         }
         return false;
     }
@@ -531,30 +543,19 @@ class Organism {
             return this.living;
         }
 
-
+       
 
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
             if (Hyperparams.alarmSignallingEnabled) {
-                console.log(
-                    "CALLING:",
-                    this.isCallingAlarm,
-                    "COOLDOWN:",
-                    this.alarmCooldown
-                );
-                let predatorNearby = this.detectPredator();
-
-                if (predatorNearby) {
-                    let kinNearby = this.detectKin(30, 0.25);
-                    //console.log(`[KIN] Prey at (${this.c},${this.r}) predator nearby, kinNearby=${kinNearby}, p=${this.alarmProbability.toFixed(2)}`);
-                }
+                //let predatorNearby = this.detectPredator();
 
                 //Alarm call sent if predators and kin are nearby
                 if (
-                    predatorNearby &&
+                    this.detectPredator(30) &&
                     this.alarmCooldown === 0 &&
                     Math.random() < this.alarmProbability &&
-                    this.detectKin() &&
+                    //this.detectKin() &&
                     !this.heardAlarm &&
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
@@ -826,24 +827,36 @@ class Organism {
     }
 
     //Method for predators to detect prey in a certain radius
-    detectPrey(radius = 15) {
-        let env = this.env;
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-                if (cell && cell.owner && cell.owner.role === "prey") {
-                    // never target prey inside safe zone
-                    if (!env.isInSafeZone(cell.owner.c, cell.owner.r)) {
-                        return cell.owner;
-                    }
-                }
-            }
+    // detectPrey(radius = 15) {
+    //     let env = this.env;
+    //     for (let dx = -radius; dx <= radius; dx++) {
+    //         for (let dy = -radius; dy <= radius; dy++) {
+    //             let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
+    //             if (cell && cell.owner && cell.owner.role === "prey") {
+    //                 // never target prey inside safe zone
+    //                 if (!env.isInSafeZone(cell.owner.c, cell.owner.r)) {
+    //                     return cell.owner;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return null;
+    // }
+
+    detectPrey(radius = 30) {
+        let radiusSq = radius * radius;
+        for (let org of this.env.organisms) {
+            if (org.role !== "prey" || !org.living) continue;
+            if (this.env.isInSafeZone(org.c, org.r)) continue;
+            let dx = org.c - this.c;
+            let dy = org.r - this.r;
+            if (dx * dx + dy * dy <= radiusSq) return org;
         }
         return null;
     }
 
     //For predators: detect alarm calls from prey and pursue that prey instead 
-    detectAlarmCaller(radius = 30) {
+    detectAlarmCaller(radius = 40) {
         if (!Hyperparams.alarmSignallingEnabled) return null;
 
         let env = this.env;
