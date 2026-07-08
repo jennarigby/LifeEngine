@@ -33,7 +33,7 @@ class Organism {
             this.generation = parent.generation + 1;
         } else {
             this.role = "prey";
-            this.alarmProbability = 0;
+            this.alarmProbability = 0.5;
             this.lineageId = this.generateLineageId();
             this.parentId = null;
             this.generation = 0;
@@ -165,27 +165,60 @@ class Organism {
         return false;
     }
 
-    broadcastAlarm(radius) {
+    logAlarmCall(recipients) {
+        if (!this.living || this.role !== "prey" || recipients.length === 0) return;
+
+        let details = [
+            `Caller ID: ${this.id}`,
+            `Caller generation: ${this.generation}`,
+            `Caller p: ${this.alarmProbability.toFixed(2)}`
+        ];
+
+        for (let recipient of recipients) {
+            details.push(`Kin ID: ${recipient.id}`);
+            details.push(`Relatedness: ${recipient.relatedness.toFixed(2)}`);
+            details.push(`Generation: ${recipient.generation}`);
+            details.push(`p: ${recipient.alarmProbability.toFixed(2)}`);
+        }
+
+        console.log(details.join(""));
+    }
+
+    broadcastAlarm(radius, logCall = false) {
         let env = this.env;
+        let radiusSq = radius * radius;
+        let recipients = [];
 
         for (let org of env.organisms) {
-            if (org === this) continue;
+            if (org === this || org.role !== "prey" || !org.living) continue;
 
             let dx = org.c - this.c;
             let dy = org.r - this.r;
-            let dist = Math.sqrt(dx * dx + dy * dy);
+            let distSq = dx * dx + dy * dy;
 
-            if (dist <= radius && org.role === "prey") {
+            if (distSq <= radiusSq) {
+                // only alert kin above relatedness threshold
+                let r = this.calcRelatedness(org);
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
-                org.alarmTimer = 30;
 
-                // console.log(
-                //     `[ALARM][RECEIVED] Prey at (${org.c}, ${org.r}) heard alarm from (${this.c}, ${this.r}), dist=${dist.toFixed(2)}`
-                // );
-
+                if (r >= 0.125) {
+                    org.alarmTimer = 50; // kin flee for full duration
+                    recipients.push({
+                        id: org.id,
+                        relatedness: r,
+                        generation: org.generation,
+                        alarmProbability: org.alarmProbability
+                    });
+                } else {
+                    org.alarmTimer = 10;  // non-kin barely react
+                }
             }
         }
+
+        // if (logCall) {
+        //     this.logAlarmCall(recipients);
+        // }
     }
 
     // amount of food required before it can reproduce
@@ -543,11 +576,13 @@ class Organism {
             return this.living;
         }
 
-       
+
 
         // 1. PREY ALARM SYSTEM
         if (this.role === "prey") {
             if (Hyperparams.alarmSignallingEnabled) {
+                let shouldLogAlarmCall = false;
+
                 //let predatorNearby = this.detectPredator();
 
                 //Alarm call sent if predators and kin are nearby
@@ -555,10 +590,11 @@ class Organism {
                     this.detectPredator(30) &&
                     this.alarmCooldown === 0 &&
                     Math.random() < this.alarmProbability &&
-                    //this.detectKin() &&
+                    this.detectKin() &&
                     !this.heardAlarm &&
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
+                    shouldLogAlarmCall = true;
                     this.alarmCallTimer = 50;
                     this.alarmCooldown = 10;
                 }
@@ -572,7 +608,7 @@ class Organism {
 
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
-                    this.broadcastAlarm(40);
+                    this.broadcastAlarm(40, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
 
@@ -904,41 +940,32 @@ class Organism {
         return 0; // no shared ancestry within tracked depth
     }
 
-    detectKin(radius = 30, threshold = 0.25) {
-        let env = this.env;
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-                if (cell && cell.owner && cell.owner !== this &&
-                    cell.owner.role === "prey") {
-                    let r = this.calcRelatedness(cell.owner);
-                    if (r >= threshold) {
-                        return true;
-                    }
-                }
+    detectKin(radius = 30, threshold = 0.125) {
+        let radiusSq = radius * radius;
+        for (let org of this.env.organisms) {
+            if (org === this || org.role !== "prey" || !org.living) continue;
+            let dx = org.c - this.c;
+            let dy = org.r - this.r;
+            if (dx * dx + dy * dy <= radiusSq) {
+                if (this.calcRelatedness(org) >= threshold) return true;
             }
         }
         return false;
     }
 
-    detectNearestKin(radius = 30, threshold = 0.25) {
-        let env = this.env;
+    detectNearestKin(radius = 30, threshold = 0.125) {
+        let radiusSq = radius * radius;
         let nearest = null;
-        let nearestDist = Infinity;
-
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-                if (cell && cell.owner && cell.owner !== this &&
-                    cell.owner.role === "prey") {
-                    let r = this.calcRelatedness(cell.owner);
-                    if (r >= threshold) {
-                        let dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
-                            nearest = cell.owner;
-                        }
-                    }
+        let nearestDistSq = Infinity;
+        for (let org of this.env.organisms) {
+            if (org === this || org.role !== "prey" || !org.living) continue;
+            let dx = org.c - this.c;
+            let dy = org.r - this.r;
+            let distSq = dx * dx + dy * dy;
+            if (distSq <= radiusSq && this.calcRelatedness(org) >= threshold) {
+                if (distSq < nearestDistSq) {
+                    nearestDistSq = distSq;
+                    nearest = org;
                 }
             }
         }
