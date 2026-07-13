@@ -55,6 +55,7 @@ class Organism {
         this.alarmCallTimer = 0;
         this.alarmTimer = 0;
         this.alarmSource = null;
+        this.survivedAlarmCount = 0;
 
         // Predator targeting
         this.target = null;
@@ -123,6 +124,12 @@ class Organism {
         // identity
         this.species = parent.species;
         if (this.role === "prey") {
+            // let bias = 0;
+            // if (parent.survivedAlarmCount > 0) {
+            //     bias += 0.01 * Math.min(parent.survivedAlarmCount, 5);
+            // }
+            // let mutation = (Math.random() - 0.5) * 0.05 + bias;
+            // this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
             let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
             this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
         } else {
@@ -536,6 +543,9 @@ class Organism {
     update() {
         if (this.alarmCooldown > 0) this.alarmCooldown--;
         if (this.alarmTimer > 0) this.alarmTimer--;
+        // if (this.role === "prey" && this.alarmTimer === 1 && this.living) {
+        //     this.survivedAlarmCount = (this.survivedAlarmCount || 0) + 1;
+        // }
 
         this.lifetime++;
 
@@ -597,6 +607,9 @@ class Organism {
                     shouldLogAlarmCall = true;
                     this.alarmCallTimer = 50;
                     this.alarmCooldown = 10;
+                    if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
+                        this.env.alarmCallsThisWindow++;
+                    }
                 }
 
                 if (this.alarmCallTimer > 0) {

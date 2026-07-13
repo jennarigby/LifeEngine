@@ -11,6 +11,7 @@ const FossilRecord = {
         this.min_discard = 10;
 
         this.record_size_limit = null; // keep full history; do not truncate chart data
+        this.alarm_call_window_size = 500;
     },
 
     setEnv: function (env) {
@@ -83,8 +84,11 @@ const FossilRecord = {
         this.lineage_counts = [];
         this.av_mut_rates = [];
         this.av_alarm_probs = [];
+        this.alarm_call_counts = [];
+        this.alarm_call_ticks = [];
         this.av_cells = [];
         this.av_cell_counts = [];
+        this.alarm_call_window_size = this.alarm_call_window_size || 500;
         this.updateData();
     },
 
@@ -127,9 +131,20 @@ const FossilRecord = {
                 this.lineage_counts.shift();
                 this.av_mut_rates.shift();
                 this.av_alarm_probs.shift();
+                this.alarm_call_counts.shift();
+                this.alarm_call_ticks.shift();
                 this.av_cells.shift();
                 this.av_cell_counts.shift();
             }
+        }
+    },
+
+    addAlarmCallTick(tick, count) {
+        this.alarm_call_ticks.push(tick);
+        this.alarm_call_counts.push(count);
+        if (this.record_size_limit != null && this.alarm_call_ticks.length > this.record_size_limit) {
+            this.alarm_call_ticks.shift();
+            this.alarm_call_counts.shift();
         }
     },
 
@@ -197,6 +212,8 @@ const FossilRecord = {
             lineage_counts: this.lineage_counts,
             av_mut_rates: this.av_mut_rates,
             av_alarm_probs: this.av_alarm_probs,
+            alarm_call_counts: this.alarm_call_counts,
+            alarm_call_ticks: this.alarm_call_ticks,
             av_cells: this.av_cells,
             av_cell_counts: this.av_cell_counts,
         };
@@ -213,6 +230,13 @@ const FossilRecord = {
         SerializeHelper.overwriteNonObjects(record, this);
         for (let key in record.records) {
             this[key] = record.records[key];
+        }
+        this.alarm_call_window_size = record.alarm_call_window_size || this.alarm_call_window_size || 500;
+        if (!Array.isArray(this.alarm_call_ticks)) {
+            this.alarm_call_ticks = [];
+        }
+        if (!Array.isArray(this.alarm_call_counts)) {
+            this.alarm_call_counts = [];
         }
     }
     

@@ -29,6 +29,9 @@ class WorldEnvironment extends Environment {
         this.data_update_rate = 100;
         this._autoStopped = false;
         this.safeZones = [];
+        this.alarmCallsThisWindow = 0;
+        this.alarmCallWindowSize = 500;
+        this.totalAlarmCallsLogged = 0;
         FossilRecord.setEnv(this);
         this.createSafeZone();
     }
@@ -103,6 +106,28 @@ class WorldEnvironment extends Environment {
         if (Hyperparams.foodDropProb > 0) {
             this.generateFood();
         }
+
+        const currentTick = this.total_ticks + 1;
+
+        if (currentTick > 0 && currentTick % 10000 === 0) {
+            let prey = this.organisms.filter(o => o.role === "prey" && o.living);
+            let avgP = prey.length > 0
+                ? prey.reduce((sum, o) => sum + o.alarmProbability, 0) / prey.length
+                : 0;
+
+            console.log(JSON.stringify({
+                tick: currentTick,
+                preyCount: prey.length,
+                alarmCallsThisWindow: this.alarmCallsThisWindow,
+                avgAlarmProbability: avgP.toFixed(3)
+            }));
+        }
+
+        if (currentTick % this.alarmCallWindowSize === 0) {
+            FossilRecord.addAlarmCallTick(currentTick, this.alarmCallsThisWindow || 0);
+            this.alarmCallsThisWindow = 0;
+        }
+
         this.total_ticks++;
         // Optionally stop at a specified tick value
         if (WorldConfig.stop_on_tick && WorldConfig.stop_tick_value > 0) {

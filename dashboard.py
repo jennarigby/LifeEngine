@@ -1,8 +1,8 @@
-import streamlit as st
+import streamlit as st # type: ignore
 import json
-import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
+import pandas as pd # type: ignore
+import plotly.graph_objects as go  # type: ignore
+import plotly.express as px # type: ignore
 from pathlib import Path
 
 st.set_page_config(
@@ -39,6 +39,8 @@ def load_run(file_bytes, filename):
         "prey_lifespan": records.get("prey_avg_lifespan", []),
         "predator_lifespan": records.get("predator_avg_lifespan", []),
         "alarm_prob": records.get("av_alarm_probs", []),
+        "alarm_calls": records.get("alarm_call_counts", []),
+        "alarm_call_ticks": records.get("alarm_call_ticks", records.get("tick_record", [])),
         "mut_rates": records.get("av_mut_rates", []),
         "species": records.get("species_counts", []),
         "lineage_counts": records.get("lineage_counts", []),
@@ -85,7 +87,8 @@ for run in runs:
         "Peak Prey": max(run["prey"]) if run["prey"] else 0,
         "Peak Predators": max(run["predators"]) if run["predators"] else 0,
         "Final Alarm p": round(run["alarm_prob"][-1], 3)
-            if run["alarm_prob"] else 0
+            if run["alarm_prob"] else 0,
+        "Total Alarm Calls": sum(run["alarm_calls"]) if run.get("alarm_calls") else 0
     })
 
 st.dataframe(
@@ -202,6 +205,23 @@ fig.add_hline(y=0.5, line_dash="dot", line_color="gray",
 fig.update_layout(
     xaxis_title="Tick", yaxis_title="Average p",
     yaxis=dict(range=[0, 1]),
+    hovermode="x unified", height=400
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# ── Alarm calls chart ─────────────────────────────────────────────────────────
+st.header("Alarm Calls Over Time")
+fig = go.Figure()
+for i, run in enumerate(runs):
+    if run["alarm_calls"] and run["alarm_call_ticks"]:
+        fig.add_trace(go.Scatter(
+            x=run["alarm_call_ticks"],
+            y=smooth_series(run["alarm_calls"], smooth),
+            name=run["name"],
+            line=dict(color=colors_prey[i % len(colors_prey)])
+        ))
+fig.update_layout(
+    xaxis_title="Tick", yaxis_title="Alarm calls per window",
     hovermode="x unified", height=400
 )
 st.plotly_chart(fig, use_container_width=True)
