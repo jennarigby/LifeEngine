@@ -34,6 +34,8 @@ const Hyperparams = {
         this.lookRange = 30;
         this.seeThroughSelf = false;
         this.alarmSignallingEnabled = false;
+        this.predatorAlarmResponseProbability = 0.7;        
+        this.preyAlarmSpeedMultiplier = 2;        
         this.evolveIndependentEyeDecisions = true;
 
         this.foodDropProb = 6;

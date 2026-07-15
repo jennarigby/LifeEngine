@@ -54,7 +54,7 @@ class Renderer {
             const x = Math.round(cell.x);
             const y = Math.round(cell.y);
             const size = Math.round(this.cell_size);
-            this.ctx.strokeStyle = 'rgba(255, 80, 80, 0.85)';
+            this.ctx.strokeStyle = 'rgba(255, 220, 80, 0.85)';
             this.ctx.lineWidth = Math.max(2, this.cell_size * 0.12);
             this.ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
         }

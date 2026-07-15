@@ -621,7 +621,7 @@ class Organism {
 
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
-                    this.broadcastAlarm(40, shouldLogAlarmCall);
+                    this.broadcastAlarm(50, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
 
@@ -670,7 +670,7 @@ class Organism {
                         ? this.detectAlarmCaller()
                         : null;
 
-                    if (alarmTarget) {
+                    if (alarmTarget && Math.random() < Hyperparams.predatorAlarmResponseProbability) {
                         this.target = alarmTarget;
                         this.targetType = "alarm";
                         this.targetTimer = 40;
@@ -811,19 +811,26 @@ class Organism {
                 }
 
 
-                // MOVE 
-                let moved = this.attemptMove();
-
-                if (!moved) {
-                    let rotated = this.attemptRotate();
-                    if (!rotated) {
-                        this.changeDirection(Directions.getRandomDirection());
-                    }
-                } else {
-                    this.move_count++;
+                // MOVE
+                let moveAttempts = 1;
+                if (this.role === "prey" && this.alarmTimer > 0) {
+                    moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier));
                 }
-                if (this.role === "predator") {
-                    this.checkForPreyCollision();
+
+                for (let attempt = 0; attempt < moveAttempts; attempt++) {
+                    let moved = this.attemptMove();
+
+                    if (!moved) {
+                        let rotated = this.attemptRotate();
+                        if (!rotated) {
+                            this.changeDirection(Directions.getRandomDirection());
+                        }
+                    } else {
+                        this.move_count++;
+                    }
+                    if (this.role === "predator") {
+                        this.checkForPreyCollision();
+                    }
                 }
 
             }

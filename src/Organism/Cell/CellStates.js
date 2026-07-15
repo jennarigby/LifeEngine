@@ -6,7 +6,21 @@ class CellState{
     }
 
     render(ctx, cell, size) {
-        ctx.fillStyle = this.color;
+        const LineageColors = require('../../Rendering/LineageColors');
+        let fill = this.color;
+        // Predators use a uniform predator color; prey/families use lineage colors for living cell types
+        if (cell && cell.owner) {
+            if (cell.owner.role === 'predator') {
+                fill = LineageColors.getPredatorColor();
+            } else if (cell.owner.lineageId) {
+                const livingNames = ['mouth', 'producer', 'mover', 'killer', 'armor', 'eye'];
+                if (livingNames.indexOf(this.name) !== -1) {
+                    const lineageColor = LineageColors.getColor(cell.owner.lineageId);
+                    if (lineageColor) fill = lineageColor;
+                }
+            }
+        }
+        ctx.fillStyle = fill;
         ctx.fillRect(cell.x, cell.y, size, size);
     }
 }
@@ -68,7 +82,16 @@ class Eye extends CellState {
         var w = size/4;
         ctx.translate(cell.x+half, cell.y+half);
         ctx.rotate((cell.cell_owner.getAbsoluteDirection() * 90) * Math.PI / 180);
-        ctx.fillStyle = this.slit_color;
+        const LineageColors = require('../../Rendering/LineageColors');
+        let slitColor = this.slit_color;
+        if (cell && cell.owner) {
+            if (cell.owner.role === 'predator') {
+                slitColor = LineageColors.getPredatorAccent();
+            } else if (cell.owner.lineageId) {
+                slitColor = LineageColors.getAccent(cell.owner.lineageId);
+            }
+        }
+        ctx.fillStyle = slitColor;
         ctx.fillRect(x, y, w, h);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
     }

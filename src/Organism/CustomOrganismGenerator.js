@@ -100,6 +100,11 @@ class CustomOrganismGenerator {
         const height = env.grid_map.rows;
         const margin = 6;
 
+        const clusterOffsets = [
+            [0, 0], [0, 3], [0, 6], [0, 9], [0, 12],
+            [3, 0], [3, 3], [3, 6], [3, 9], [3, 12]
+        ];
+
         const clusterAnchors = [
             [margin + 3, margin + 3],
             [width - margin - 5, margin + 3],
@@ -108,50 +113,34 @@ class CustomOrganismGenerator {
             [Math.floor(width / 2) - 1, Math.floor(height / 2) - 7]
         ];
 
-        const lineageOffsetGroups = [
-            [[0, 0], [0, 4]],
-            [[4, 0], [4, 4]],
-            [[0, -4], [4, -4]],
-            [[-4, 0], [-4, 4]],
-            [[-4, -4], [0, 8]]
-        ];
+        for (let clusterIndex = 0; clusterIndex < clusterAnchors.length; clusterIndex++) {
+            let [anchorC, anchorR] = clusterAnchors[clusterIndex];
+            let founder = this.createPrey(env, anchorC, anchorR);
+            founder.id = founder.generateId ? founder.generateId() : `founder_${Date.now()}_${Math.random()}`;
+            founder.lineageId = `lineage_${clusterIndex + 1}`;
+            founder.generation = 0;
+            founder.ancestors = [];
 
-        const lineages = [];
-        for (let lineageIndex = 0; lineageIndex < clusterAnchors.length; lineageIndex++) {
-            let prototype = this.createPrey(env, 0, 0);
-            prototype.lineageId = `lineage_${lineageIndex + 1}`;
-            prototype.generation = 0;
-            prototype.parentId = null;
-            prototype.ancestors = [];
-            prototype.species = {
-                name: prototype.role,
-                addPop: () => { },
-                decreasePop: () => { }
-            };
-            lineages.push(prototype);
-        }
+            const preyPerCluster = Math.min(10, clusterOffsets.length); // cap at 10 per family
 
-        for (let anchorIndex = 0; anchorIndex < clusterAnchors.length; anchorIndex++) {
-            let [anchorC, anchorR] = clusterAnchors[anchorIndex];
             let placedInCluster = 0;
 
-            for (let lineageIndex = 0; lineageIndex < lineages.length; lineageIndex++) {
-                let lineageProto = lineages[lineageIndex];
-                let offsets = lineageOffsetGroups[lineageIndex];
+            for (let i = 0; i < preyPerCluster; i++) {
+                let [dx, dy] = clusterOffsets[i];
+                const c = anchorC + dx;
+                const r = anchorR + dy;
 
-                for (let [dx, dy] of offsets) {
-                    const c = Math.max(1, Math.min(width - 2, anchorC + dx));
-                    const r = Math.max(1, Math.min(height - 2, anchorR + dy));
+                if (c < 1 || c > width - 2 || r < 1 || r > height - 2) continue;
 
-                    let sibling = new (require('./Organism'))(c, r, env, lineageProto);
-                    if (this.tryAddOrganism(env, sibling, c, r)) {
-                        spawned++;
-                        placedInCluster++;
-                    }
+                let sibling = new (require('./Organism'))(c, r, env, founder);
+                if (this.tryAddOrganism(env, sibling, c, r)) {
+                    spawned++;
+                    placedInCluster++;
+
                 }
             }
 
-            console.log(`Food source at (${anchorC}, ${anchorR}) — placed ${placedInCluster} lineage siblings`);
+            console.log(`Family at (${anchorC}, ${anchorR}) — placed ${placedInCluster} siblings`);
         }
 
         // Fixed predator positions, separated from prey clusters
