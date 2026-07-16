@@ -16,10 +16,11 @@ class WorldEnvironment extends Environment {
         super();
         this.engine = engine;
         this.renderer = new Renderer('env-canvas', 'env', cell_size);
-        this.num_rows = WorldConfig.grid_rows || Math.ceil(this.renderer.height / cell_size);
-        this.num_cols = WorldConfig.grid_cols || Math.ceil(this.renderer.width / cell_size);
+        this.num_rows = Number(WorldConfig.grid_rows) || 200;
+        this.num_cols = Number(WorldConfig.grid_cols) || 400;
         this.controller = new EnvironmentController(this, this.renderer.canvas);
         this.grid_map = new GridMap(this.num_cols, this.num_rows, cell_size);
+        this.renderer.fillShape(this.num_rows * cell_size, this.num_cols * cell_size);
         this.organisms = [];
         this.walls = [];
         this.total_mutability = 0;
@@ -341,6 +342,14 @@ class WorldEnvironment extends Environment {
     reset(confirm_reset = true, reset_life = true) {
         if (confirm_reset && !confirm('The current environment will be lost. Proceed?'))
             return false;
+
+        // Always restore the configured default world size so the sim starts at 400x200.
+        this.num_rows = Number(WorldConfig.grid_rows) || this.num_rows;
+        this.num_cols = Number(WorldConfig.grid_cols) || this.num_cols;
+        if (this.grid_map) {
+            this.grid_map.resize(this.num_cols, this.num_rows, this.renderer.cell_size);
+        }
+
         let restart = false;
         // clear auto-stop so stop-at-tick can trigger again after a reset
         this._autoStopped = false;

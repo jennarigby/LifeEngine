@@ -102,7 +102,9 @@ class CustomOrganismGenerator {
 
         const clusterOffsets = [
             [0, 0], [0, 3], [0, 6], [0, 9], [0, 12],
-            [3, 0], [3, 3], [3, 6], [3, 9], [3, 12]
+            [3, 0], [3, 3], [3, 6], [3, 9], [3, 12],
+            [6, 0], [6, 3], [6, 6], [6, 9], [6, 12],
+            [9, 0], [9, 3], [9, 6], [9, 9], [9, 12]
         ];
 
         const clusterAnchors = [
@@ -121,7 +123,7 @@ class CustomOrganismGenerator {
             founder.generation = 0;
             founder.ancestors = [];
 
-            const preyPerCluster = Math.min(10, clusterOffsets.length); // cap at 10 per family
+            const preyPerCluster = Math.min(20, clusterOffsets.length); // cap at 20 per family
 
             let placedInCluster = 0;
 
@@ -143,13 +145,14 @@ class CustomOrganismGenerator {
             console.log(`Family at (${anchorC}, ${anchorR}) — placed ${placedInCluster} siblings`);
         }
 
-        // Fixed predator positions, separated from prey clusters
+        // Four predators arranged in a cross between the corner prey clusters
+        const midCol = Math.floor(width / 2);
+        const midRow = Math.floor(height / 2);
         const predatorPositions = [
-            [Math.floor(width / 2), margin + 2],
-            [Math.floor(width / 2), height - margin - 3],
-            [margin + 2, Math.floor(height / 4)],
-            [width - margin - 3, Math.floor((height * 3) / 4)],
-            [margin + 2, Math.floor((height * 3) / 4)]
+            [midCol, margin + 2],
+            [midCol, height - margin - 3],
+            [margin + 2, midRow],
+            [width - margin - 3, midRow]
         ];
 
         const fallbackOffsets = [
