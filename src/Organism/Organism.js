@@ -124,14 +124,19 @@ class Organism {
         // identity
         this.species = parent.species;
         if (this.role === "prey") {
+            //Bonus/Bias value:
             // let bias = 0;
             // if (parent.survivedAlarmCount > 0) {
             //     bias += 0.01 * Math.min(parent.survivedAlarmCount, 5);
             // }
             // let mutation = (Math.random() - 0.5) * 0.05 + bias;
             // this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
-            let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
-            this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
+
+            //Without bias: 
+            // let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
+            // this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
+            // Keep each lineage's alarm probability fixed so all descendants share the same value.
+            this.alarmProbability = parent.alarmProbability;
         } else {
             this.alarmProbability = 0;
         }
@@ -210,7 +215,8 @@ class Organism {
                 org.alarmSource = { c: this.c, r: this.r };
 
                 if (r >= 0.125) {
-                    org.alarmTimer = 50; // kin flee for full duration
+                    const intensity = Math.max(0.25, this.alarmProbability);
+                    org.alarmTimer = Math.max(30, Math.floor(20 + 50 * intensity));
                     recipients.push({
                         id: org.id,
                         relatedness: r,
@@ -218,7 +224,7 @@ class Organism {
                         alarmProbability: org.alarmProbability
                     });
                 } else {
-                    org.alarmTimer = 10;  // non-kin barely react
+                    org.alarmTimer = 5;  // non-kin barely react
                 }
             }
         }
@@ -605,7 +611,7 @@ class Organism {
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
                     shouldLogAlarmCall = true;
-                    this.alarmCallTimer = 50;
+                    this.alarmCallTimer = Math.max(20, Math.floor(20 + 50 * this.alarmProbability));
                     this.alarmCooldown = 10;
                     if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
                         this.env.alarmCallsThisWindow++;
@@ -621,7 +627,8 @@ class Organism {
 
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
-                    this.broadcastAlarm(50, shouldLogAlarmCall);
+                    const broadcastRadius = Math.max(30, Math.floor(30 + 30 * this.alarmProbability));
+                    this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
 
@@ -673,7 +680,7 @@ class Organism {
                     if (alarmTarget && Math.random() < Hyperparams.predatorAlarmResponseProbability) {
                         this.target = alarmTarget;
                         this.targetType = "alarm";
-                        this.targetTimer = 40;
+                        this.targetTimer = 50;
                     } else {
                         const hasTarget = this.target && this.target.living;
 
@@ -731,14 +738,13 @@ class Organism {
                 }
 
                 // PREY BRAIN 
-                // PREY BRAIN 
                 if (this.role === "prey" && this.anatomy.has_eyes) {
                     let result = this.brain.decide();
                     brain_decision = result.decision;
                     brain_direction = result.move_direction;
                 }
 
-                // ALARM MOVEMENT OVERRIDE - mutually exclusive, caller takes priority
+                // ALARM MOVEMENT OVERRIDE -  caller takes priority
                 if (this.role === "prey" && this.isCallingAlarm) {
                     // decoy: run away from kin
                     let nearestKin = this.detectNearestKin();
@@ -814,7 +820,7 @@ class Organism {
                 // MOVE
                 let moveAttempts = 1;
                 if (this.role === "prey" && this.alarmTimer > 0) {
-                    moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier));
+                    moveAttempts = 1;
                 }
 
                 for (let attempt = 0; attempt < moveAttempts; attempt++) {

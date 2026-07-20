@@ -116,12 +116,12 @@ class WorldEnvironment extends Environment {
                 ? prey.reduce((sum, o) => sum + o.alarmProbability, 0) / prey.length
                 : 0;
 
-            console.log(JSON.stringify({
-                tick: currentTick,
-                preyCount: prey.length,
-                alarmCallsThisWindow: this.alarmCallsThisWindow,
-                avgAlarmProbability: avgP.toFixed(3)
-            }));
+            // console.log(JSON.stringify({
+            //     tick: currentTick,
+            //     preyCount: prey.length,
+            //     alarmCallsThisWindow: this.alarmCallsThisWindow,
+            //     avgAlarmProbability: avgP.toFixed(3)
+            // }));
         }
 
         if (currentTick % this.alarmCallWindowSize === 0) {

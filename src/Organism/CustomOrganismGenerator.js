@@ -1,6 +1,7 @@
 const CellStates = require("./Cell/CellStates");
 const Organism = require("./Organism");
 const Directions = require('./Directions');
+const LineageColors = require('../Rendering/LineageColors');
 
 class CustomOrganismGenerator {
 
@@ -101,24 +102,32 @@ class CustomOrganismGenerator {
         const margin = 6;
 
         const clusterOffsets = [
-            [0, 0], [0, 3], [0, 6], [0, 9], [0, 12],
-            [3, 0], [3, 3], [3, 6], [3, 9], [3, 12],
-            [6, 0], [6, 3], [6, 6], [6, 9], [6, 12],
-            [9, 0], [9, 3], [9, 6], [9, 9], [9, 12]
+            [-3, -4], [-1, -4], [1, -4], [3, -4],
+            [-4, -2], [-2, -2], [0, -2], [2, -2], [4, -2],
+            [-4, 0], [-2, 0], [0, 0], [2, 0], [4, 0],
+            [-4, 2], [-2, 2], [0, 2], [2, 2], [4, 2],
+            [0, 4]
         ];
 
+        const centerCol = Math.floor(width / 2);
+        const centerRow = Math.floor(height / 2);
         const clusterAnchors = [
-            [margin + 3, margin + 3],
-            [width - margin - 5, margin + 3],
-            [margin + 3, height - margin - 15],
-            [width - margin - 5, height - margin - 15],
-            [Math.floor(width / 2) - 1, Math.floor(height / 2) - 7]
+            [centerCol, centerRow],
+            [centerCol - 18, centerRow],
+            [centerCol + 18, centerRow],
+            [centerCol, centerRow - 14],
+            [centerCol, centerRow + 14]
         ];
+        const lineageAlarmProbabilities = [0, 1.0, 0.5, 0.25, 0.75];
 
         for (let clusterIndex = 0; clusterIndex < clusterAnchors.length; clusterIndex++) {
             let [anchorC, anchorR] = clusterAnchors[clusterIndex];
             let founder = this.createPrey(env, anchorC, anchorR);
+            founder.alarmProbability = lineageAlarmProbabilities[clusterIndex % lineageAlarmProbabilities.length];
             founder.id = founder.generateId ? founder.generateId() : `founder_${Date.now()}_${Math.random()}`;
+            const lineageId = `lineage_${clusterIndex + 1}`;
+            const lineageColor = LineageColors.getColor(lineageId);
+            console.log(`%c[Lineage ${clusterIndex + 1}] p=${Number(founder.alarmProbability).toFixed(2)} at (${anchorC}, ${anchorR})`, `color: ${lineageColor}; font-weight: bold;`);
             founder.lineageId = `lineage_${clusterIndex + 1}`;
             founder.generation = 0;
             founder.ancestors = [];

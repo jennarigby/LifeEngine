@@ -2,7 +2,6 @@ import streamlit as st # type: ignore
 import json
 import pandas as pd # type: ignore
 import plotly.graph_objects as go  # type: ignore
-import plotly.express as px # type: ignore
 from pathlib import Path
 
 st.set_page_config(
@@ -101,8 +100,13 @@ st.dataframe(
 st.header("Population Over Time")
 tab1, tab2, tab3 = st.tabs(["Prey", "Predators", "Both"])
 
-colors_prey = px.colors.qualitative.Set2
-colors_pred = px.colors.qualitative.Set1
+lineage_colors = [
+    '#333333', '#1f77b4', '#ff7f0e', '#2ca02c', '#f48fb1',
+    '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+]
+
+def get_series_color(index):
+    return lineage_colors[index % len(lineage_colors)]
 
 with tab1:
     fig = go.Figure()
@@ -111,7 +115,7 @@ with tab1:
             x=run["ticks"],
             y=smooth_series(run["prey"], smooth),
             name=run["name"],
-            line=dict(color=colors_prey[i % len(colors_prey)])
+            line=dict(color=get_series_color(i))
         ))
     fig.update_layout(
         xaxis_title="Tick", yaxis_title="Prey population",
@@ -126,7 +130,7 @@ with tab2:
             x=run["ticks"],
             y=smooth_series(run["predators"], smooth),
             name=run["name"],
-            line=dict(color=colors_pred[i % len(colors_pred)])
+            line=dict(color=get_series_color(i))
         ))
     fig.update_layout(
         xaxis_title="Tick", yaxis_title="Predator population",
@@ -141,13 +145,13 @@ with tab3:
             x=run["ticks"],
             y=smooth_series(run["prey"], smooth),
             name=f"{run['name']} — prey",
-            line=dict(color=colors_prey[i % len(colors_prey)])
+            line=dict(color=get_series_color(i))
         ))
         fig.add_trace(go.Scatter(
             x=run["ticks"],
             y=smooth_series(run["predators"], smooth),
             name=f"{run['name']} — predators",
-            line=dict(color=colors_pred[i % len(colors_pred)], dash="dash")
+            line=dict(color=get_series_color(i), dash="dash")
         ))
     fig.update_layout(
         xaxis_title="Tick", yaxis_title="Population",
@@ -166,7 +170,7 @@ with tab4:
             x=run["ticks"],
             y=smooth_series(run["prey_lifespan"], smooth),
             name=run["name"],
-            line=dict(color=colors_prey[i % len(colors_prey)])
+            line=dict(color=get_series_color(i))
         ))
     fig.update_layout(
         xaxis_title="Tick", yaxis_title="Avg lifespan (ticks)",
@@ -181,7 +185,7 @@ with tab5:
             x=run["ticks"],
             y=smooth_series(run["predator_lifespan"], smooth),
             name=run["name"],
-            line=dict(color=colors_pred[i % len(colors_pred)])
+            line=dict(color=get_series_color(i))
         ))
     fig.update_layout(
         xaxis_title="Tick", yaxis_title="Avg lifespan (ticks)",
@@ -198,7 +202,7 @@ for i, run in enumerate(runs):
             x=run["ticks"],
             y=smooth_series(run["alarm_prob"], smooth),
             name=run["name"],
-            line=dict(color=colors_prey[i % len(colors_prey)])
+            line=dict(color=get_series_color(i))
         ))
 fig.add_hline(y=0.5, line_dash="dot", line_color="gray",
               annotation_text="Starting p=0.5")
@@ -218,7 +222,7 @@ for i, run in enumerate(runs):
             x=run["alarm_call_ticks"],
             y=smooth_series(run["alarm_calls"], smooth),
             name=run["name"],
-            line=dict(color=colors_prey[i % len(colors_prey)])
+            line=dict(color=get_series_color(i))
         ))
 fig.update_layout(
     xaxis_title="Tick", yaxis_title="Alarm calls per window",
@@ -243,7 +247,7 @@ if any(run["lineage_counts"] for run in runs):
                     x=run["ticks"],
                     y=smooth_series(series, smooth),
                     name=f"{lid}",
-                    line=dict(color=colors_prey[i % len(colors_prey)])
+                    line=dict(color=get_series_color(i))
                 ))
             fig.update_layout(
                 xaxis_title="Tick", yaxis_title="Organisms",
