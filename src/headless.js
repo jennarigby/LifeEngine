@@ -68,15 +68,16 @@ function parseArgs(argv) {
     return opts;
 }
 
-const opts        = parseArgs(process.argv.slice(2));
-const MAX_TICKS   = parseInt(opts['max-ticks']);
-const OUTPUT      = opts['output']    || 'results.json';
-const CONFIG      = opts['config']    || null;
-const LOAD        = opts['load']      || null;
-const LOG_EVERY   = parseInt(opts['log-every'] || '10000');
-const GRID_WIDTH  = opts['width']     ? parseInt(opts['width'])     : null;
-const GRID_HEIGHT = opts['height']    ? parseInt(opts['height'])    : null;
-const CELL_SIZE   = opts['cell-size'] ? parseInt(opts['cell-size']) : 4;
+const opts                 = parseArgs(process.argv.slice(2));
+const MAX_TICKS            = parseInt(opts['max-ticks']);
+const OUTPUT               = opts['output']    || 'results.json';
+const CONFIG               = opts['config']    || null;
+const LOAD                 = opts['load']      || null;
+const LOG_EVERY            = parseInt(opts['log-every'] || '10000');
+const GRID_WIDTH           = opts['width']     ? parseInt(opts['width'])     : null;
+const GRID_HEIGHT          = opts['height']    ? parseInt(opts['height'])    : null;
+const CELL_SIZE            = opts['cell-size'] ? parseInt(opts['cell-size']) : 4;
+const ENABLE_ALARM_SIGNALLING = Boolean(opts['alarm-signalling'] || opts['alarm-signaling']);
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -87,7 +88,8 @@ if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
         '  [--width     <N>]              grid width in columns (default: renderer default)\n' +
         '  [--height    <N>]              grid height in rows   (default: renderer default)\n' +
         '  [--cell-size <N>]              pixel size of each cell (default 4)\n' +
-        '  [--log-every <N>]              print progress every N ticks (default 10000)'
+        '  [--log-every <N>]              print progress every N ticks (default 10000)\n' +
+        '  [--alarm-signalling]          enable prey alarm signalling'
     );
 
     process.exit(1);
@@ -129,6 +131,12 @@ if (CONFIG) {
 
     console.log(`[headless] Hyperparameters loaded from ${CONFIG}`);
 }
+
+if (ENABLE_ALARM_SIGNALLING) {
+    Hyperparams.alarmSignallingEnabled = true;
+    console.log('[headless] Alarm signalling enabled from CLI.');
+}
+
 // ─── Minimal engine shim ──────────────────────────────────────────────────────
 
 const engine = {
