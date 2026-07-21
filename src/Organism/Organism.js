@@ -216,7 +216,8 @@ class Organism {
 
                 if (r >= 0.125) {
                     const intensity = Math.max(0.25, this.alarmProbability);
-                    org.alarmTimer = Math.max(30, Math.floor(20 + 50 * intensity));
+                    const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
+                    org.alarmTimer = Math.max(30, Math.floor((20 + 50 * intensity) ));
                     recipients.push({
                         id: org.id,
                         relatedness: r,
@@ -820,7 +821,7 @@ class Organism {
                 // MOVE
                 let moveAttempts = 1;
                 if (this.role === "prey" && this.alarmTimer > 0) {
-                    moveAttempts = 1;
+                    moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier || 1));
                 }
 
                 for (let attempt = 0; attempt < moveAttempts; attempt++) {

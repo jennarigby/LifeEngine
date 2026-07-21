@@ -95,18 +95,53 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
-
-# ── Population chart ──────────────────────────────────────────────────────────
-st.header("Population Over Time")
-tab1, tab2, tab3 = st.tabs(["Prey", "Predators", "Both"])
+summary_df = pd.DataFrame(summary_data)
+def get_series_color(index):
+    return lineage_colors[index % len(lineage_colors)]
 
 lineage_colors = [
     '#333333', '#1f77b4', '#ff7f0e', '#2ca02c', '#f48fb1',
     '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
 ]
 
-def get_series_color(index):
-    return lineage_colors[index % len(lineage_colors)]
+# ── Comparison bar charts ─────────────────────────────────────────────────────
+st.header("Run Comparison (Averages Across All Runs)")
+
+avg_prey = avg(summary_df["Avg Prey"].tolist())
+avg_pred = avg(summary_df["Avg Predators"].tolist())
+avg_peak_prey = avg(summary_df["Peak Prey"].tolist())
+
+fig = go.Figure(go.Bar(
+    x=["Avg Prey", "Avg Predators", "Peak Prey"],
+    y=[avg_prey, avg_pred, avg_peak_prey],
+    marker_color=["#1f77b4", "#ff7f0e", "#2ca02c"]
+))
+fig.update_layout(
+    yaxis_title="Value",
+    hovermode="x",
+    height=400
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# ── Final Alarm p per run ─────────────────────────────────────────────────────
+st.header("Final Alarm Probability per Run")
+fig = go.Figure(go.Bar(
+    x=summary_df["Run"],
+    y=summary_df["Final Alarm p"],
+    marker_color=[lineage_colors[i % len(lineage_colors)] for i in range(len(summary_df))]
+))
+fig.update_layout(
+    xaxis_title="Run", yaxis_title="Final Alarm p",
+    yaxis=dict(range=[0, 1]),
+    hovermode="x", height=400
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# ── Population chart ──────────────────────────────────────────────────────────
+st.header("Population Over Time")
+tab1, tab2, tab3 = st.tabs(["Prey", "Predators", "Both"])
+
+
 
 with tab1:
     fig = go.Figure()
