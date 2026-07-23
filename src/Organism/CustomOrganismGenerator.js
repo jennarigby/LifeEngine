@@ -118,7 +118,7 @@ class CustomOrganismGenerator {
             [centerCol, centerRow - 14],
             [centerCol, centerRow + 14]
         ];
-        const lineageAlarmProbabilities = [0, 1.0, 0.5, 0.25, 0.75];
+        const lineageAlarmProbabilities = [0.5, 0.5, 0.5, 0.5, 0.5];
 
         for (let clusterIndex = 0; clusterIndex < clusterAnchors.length; clusterIndex++) {
             let [anchorC, anchorR] = clusterAnchors[clusterIndex];
