@@ -217,7 +217,7 @@ class Organism {
                 if (r >= 0.125) {
                     const intensity = Math.max(0.25, this.alarmProbability);
                     const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
-                    org.alarmTimer = Math.floor(20 + 60 * intensity * intensity);
+                    org.alarmTimer = Math.floor(20 + 80 * intensity * intensity);
                     recipients.push({
                         id: org.id,
                         relatedness: r,
@@ -612,8 +612,8 @@ class Organism {
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
                     shouldLogAlarmCall = true;
-                    this.alarmCallTimer = Math.max(20, Math.floor(20 + 50 * this.alarmProbability));
-                    this.alarmCooldown = 10;
+                    this.alarmCallTimer = Math.max(20, Math.floor(20 + 60 * this.alarmProbability));
+                    this.alarmCooldown = 3;
                     if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
                         this.env.alarmCallsThisWindow++;
                     }
@@ -629,7 +629,7 @@ class Organism {
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
                     const intensity = Math.max(0.25, this.alarmProbability);
-                    const broadcastRadius = Math.floor(30 + 50 * intensity * intensity);
+                    const broadcastRadius = Math.floor(35 + 60 * intensity * intensity);
                     this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }

@@ -80,11 +80,14 @@ summary_data = []
 for run in runs:
     summary_data.append({
         "Run": run["name"],
-        "Ticks": run["ticks"][-1] if run["ticks"] else 0,
+        # "Ticks": run["ticks"][-1] if run["ticks"] else 0,
         "Avg Prey": round(avg(run["prey"]), 1),
-        "Avg Predators": round(avg(run["predators"]), 1),
         "Peak Prey": max(run["prey"]) if run["prey"] else 0,
-        "Peak Predators": max(run["predators"]) if run["predators"] else 0,
+        # "Peak Predators": max(run["predators"]) if run["predators"] else 0,
+        "Avg Prey Lifespan": round(avg(run["prey_lifespan"]), 1)
+            if run["alarm_prob"] else 0,
+        "Avg Alarm p": round(avg(run["alarm_prob"]), 3)
+            if run.get("alarm_prob") else 0,
         "Final Alarm p": round(run["alarm_prob"][-1], 3)
             if run["alarm_prob"] else 0,
         "Total Alarm Calls": sum(run["alarm_calls"]) if run.get("alarm_calls") else 0
@@ -108,12 +111,18 @@ lineage_colors = [
 st.header("Run Comparison (Averages Across All Runs)")
 
 avg_prey = avg(summary_df["Avg Prey"].tolist())
-avg_pred = avg(summary_df["Avg Predators"].tolist())
+avg_prey_lifespan = avg(summary_df["Avg Prey Lifespan"].tolist())
 avg_peak_prey = avg(summary_df["Peak Prey"].tolist())
 
 fig = go.Figure(go.Bar(
-    x=["Avg Prey", "Avg Predators", "Peak Prey"],
-    y=[avg_prey, avg_pred, avg_peak_prey],
+    x=["Avg Prey Population", "Avg Prey Lifespan in ticks", "Peak Prey Population"],
+    y=[avg_prey, avg_prey_lifespan, avg_peak_prey],
+    text=[
+        f"{avg_prey:.1f}",
+        f"{avg_prey_lifespan:.1f}",
+        f"{avg_peak_prey:.1f}"
+    ],
+    textposition="outside",
     marker_color=["#1f77b4", "#ff7f0e", "#2ca02c"]
 ))
 fig.update_layout(
