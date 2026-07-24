@@ -7,7 +7,7 @@ const Hyperparams = {
         this.predatorReproductionMultiplier = 26;
         this.predatorDecayRate = 0.5;
         this.predatorStartingFood = 0;
-        this.predatorStarvationBase = 1100; // base ticks before starving without meals
+        this.predatorStarvationBase = 1250; // base ticks before starving without meals
         
 
         this.foodProdProb = 0;
