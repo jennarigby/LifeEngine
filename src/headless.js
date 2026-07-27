@@ -5,44 +5,44 @@
 // All drawing calls become no-ops; rendering is skipped via WorldConfig.headless.
 
 const mockCtx = new Proxy({}, {
-    get: (_, prop) => typeof prop === 'string' ? () => {} : undefined,
+    get: (_, prop) => typeof prop === 'string' ? () => { } : undefined,
     set: () => true,
 });
 
 const mockEl = {
-    getContext:      () => mockCtx,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    getContext: () => mockCtx,
+    addEventListener: () => { },
+    removeEventListener: () => { },
     onwheel: null,
-    width:  800,
+    width: 800,
     height: 600,
 };
 
 global.document = {
     getElementById: () => mockEl,
-    querySelector:  () => mockEl,
-    createElement:  () => mockEl,
+    querySelector: () => mockEl,
+    createElement: () => mockEl,
 };
 
-global.window    = global;
-try { global.navigator = { userAgent: '' }; } catch (_) {}
-global.confirm   = () => false; // suppress browser dialogs
+global.window = global;
+try { global.navigator = { userAgent: '' }; } catch (_) { }
+global.confirm = () => false; // suppress browser dialogs
 
 // Minimal jQuery stub — returns a chainable object for any selector
 const jqChain = new Proxy({}, {
     get(_, prop) {
         const primitives = { height: 600, width: 800, length: 1 };
         if (prop in primitives) return () => primitives[prop];
-        if (prop === 'is')   return () => false;
-        if (prop === '0')    return { click: () => {} };
-        return function() { return jqChain; };
+        if (prop === 'is') return () => false;
+        if (prop === '0') return { click: () => { } };
+        return function () { return jqChain; };
     }
 });
 
-global.$ = new Proxy(function() { return jqChain; }, {
+global.$ = new Proxy(function () { return jqChain; }, {
     get(_, prop) {
         if (prop === 'fn') return {};
-        return jqChain[prop] || function() { return jqChain; };
+        return jqChain[prop] || function () { return jqChain; };
     }
 });
 
@@ -68,16 +68,19 @@ function parseArgs(argv) {
     return opts;
 }
 
-const opts                 = parseArgs(process.argv.slice(2));
-const MAX_TICKS            = parseInt(opts['max-ticks']);
-const OUTPUT               = opts['output']    || 'results.json';
-const CONFIG               = opts['config']    || null;
-const LOAD                 = opts['load']      || null;
-const LOG_EVERY            = parseInt(opts['log-every'] || '10000');
-const GRID_WIDTH           = opts['width']     ? parseInt(opts['width'])     : null;
-const GRID_HEIGHT          = opts['height']    ? parseInt(opts['height'])    : null;
-const CELL_SIZE            = opts['cell-size'] ? parseInt(opts['cell-size']) : 4;
+const opts = parseArgs(process.argv.slice(2));
+const MAX_TICKS = parseInt(opts['max-ticks']);
+const OUTPUT = opts['output'] || 'results.json';
+const CONFIG = opts['config'] || null;
+const LOAD = opts['load'] || null;
+const LOG_EVERY = parseInt(opts['log-every'] || '10000');
+const GRID_WIDTH = opts['width'] ? parseInt(opts['width']) : null;
+const GRID_HEIGHT = opts['height'] ? parseInt(opts['height']) : null;
+const CELL_SIZE = opts['cell-size'] ? parseInt(opts['cell-size']) : 4;
 const ENABLE_ALARM_SIGNALLING = Boolean(opts['alarm-signalling'] || opts['alarm-signaling']);
+const RELATEDNESS_LEVEL = opts['relatedness-level']
+    ? parseFloat(opts['relatedness-level'])
+    : null;
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -112,13 +115,13 @@ if (isNaN(CELL_SIZE) || CELL_SIZE <= 0) {
 
 // ─── Load simulation modules ──────────────────────────────────────────────────
 
-const WorldConfig      = require('./WorldConfig');
-const Hyperparams      = require('./Hyperparameters');
+const WorldConfig = require('./WorldConfig');
+const Hyperparams = require('./Hyperparameters');
 const WorldEnvironment = require('./Environments/WorldEnvironment');
-const FossilRecord     = require('./Stats/FossilRecord');
-const fs               = require('fs');
+const FossilRecord = require('./Stats/FossilRecord');
+const fs = require('fs');
 
-WorldConfig.headless   = true;
+WorldConfig.headless = true;
 WorldConfig.auto_pause = false;
 WorldConfig.auto_reset = false;
 
@@ -135,6 +138,11 @@ if (CONFIG) {
 if (ENABLE_ALARM_SIGNALLING) {
     Hyperparams.alarmSignallingEnabled = true;
     console.log('[headless] Alarm signalling enabled from CLI.');
+}
+
+if (RELATEDNESS_LEVEL !== null) {
+    Hyperparams.relatednessLevel = RELATEDNESS_LEVEL;
+    console.log(`[headless] Relatedness level set to ${RELATEDNESS_LEVEL}`);
 }
 
 // ─── Minimal engine shim ──────────────────────────────────────────────────────

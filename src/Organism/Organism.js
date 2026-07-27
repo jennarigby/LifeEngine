@@ -214,7 +214,7 @@ class Organism {
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
 
-                if (r >= 0.125) {
+                if (r >= Hyperparams.relatednessLevel) {
                     const intensity = Math.max(0.25, this.alarmProbability);
                     const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
                     org.alarmTimer = Math.floor(20 + 80 * intensity * intensity);
@@ -968,7 +968,7 @@ class Organism {
         return 0; // no shared ancestry within tracked depth
     }
 
-    detectKin(radius = 30, threshold = 0.125) {
+    detectKin(radius = 30, threshold = Hyperparams.relatednessLevel) {
         let radiusSq = radius * radius;
         for (let org of this.env.organisms) {
             if (org === this || org.role !== "prey" || !org.living) continue;
@@ -981,7 +981,7 @@ class Organism {
         return false;
     }
 
-    detectNearestKin(radius = 30, threshold = 0.125) {
+    detectNearestKin(radius = 30, threshold = Hyperparams.relatednessLevel) {
         let radiusSq = radius * radius;
         let nearest = null;
         let nearestDistSq = Infinity;
