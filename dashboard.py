@@ -154,19 +154,65 @@ fig = go.Figure(go.Bar(
 fig.update_layout(yaxis_title="Value", hovermode="x", height=400)
 st.plotly_chart(fig, use_container_width=True, key="chart_1")
 
-# ── Final Alarm p per run ─────────────────────────────────────────────────────
-st.header("Final Alarm Probability per Run")
-fig = go.Figure(go.Bar(
+# Alarm Probability Bar Chart
+st.header("Alarm Probability per Run")
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    name="Avg Alarm p",
+    x=summary_df["Run"],
+    y=summary_df["Avg Alarm p"],
+    marker_color="#1f77b4"
+))
+fig.add_trace(go.Bar(
+    name="Final Alarm p",
     x=summary_df["Run"],
     y=summary_df["Final Alarm p"],
-    marker_color=[lineage_colors[i % len(lineage_colors)] for i in range(len(summary_df))]
+    marker_color="#ff7f0e"
 ))
 fig.update_layout(
-    xaxis_title="Run", yaxis_title="Final Alarm p",
+    barmode="group",
+    xaxis_title="Run",
+    yaxis_title="Alarm p",
     yaxis=dict(range=[0, 1]),
-    hovermode="x", height=400
+    hovermode="x",
+    height=400
 )
-st.plotly_chart(fig, use_container_width=True, key="chart_2")
+st.plotly_chart(fig, use_container_width=True, key="chart_alarm_p")
+
+st.header("Surviving Lineage per Run")
+surviving_lineages = []
+for run in runs:
+    if run["lineage_counts"] and run["lineage_counts"][-1]:
+        last = run["lineage_counts"][-1]
+        surviving = max(last, key=last.get)
+    else:
+        surviving = "unknown"
+    surviving_lineages.append(surviving)
+
+# get all lineage ids in sorted order to match the lineage chart colours
+all_lineage_ids = sorted({lid for run in runs if run["lineage_counts"] 
+                          for record in run["lineage_counts"] for lid in record.keys()})
+
+def lineage_color(lineage_id):
+    if lineage_id in all_lineage_ids:
+        return lineage_colors[all_lineage_ids.index(lineage_id) % len(lineage_colors)]
+    return "#cccccc"
+
+fig = go.Figure(go.Bar(
+    x=summary_df["Run"],
+    y=[1] * len(runs),
+    marker_color=[lineage_color(lid) for lid in surviving_lineages],
+    text=surviving_lineages,
+    textposition="inside",
+    hovertext=surviving_lineages,
+    hoverinfo="text+x"
+))
+fig.update_layout(
+    xaxis_title="Run",
+    yaxis=dict(visible=False),
+    height=200
+)
+st.plotly_chart(fig, use_container_width=True, key="chart_surviving_lineage")
 
 # ── Population chart ──────────────────────────────────────────────────────────
 st.header("Population Over Time")

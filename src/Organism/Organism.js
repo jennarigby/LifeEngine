@@ -133,10 +133,10 @@ class Organism {
             // this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
 
             //Without bias: 
-            let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
-            this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
+            //let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
+            //this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
             // Keep each lineage's alarm probability fixed so all descendants share the same value.
-            //this.alarmProbability = parent.alarmProbability;
+            this.alarmProbability = parent.alarmProbability;
         } else {
             this.alarmProbability = 0;
         }
