@@ -81,6 +81,9 @@ const ENABLE_ALARM_SIGNALLING = Boolean(opts['alarm-signalling'] || opts['alarm-
 const RELATEDNESS_LEVEL = opts['relatedness-level']
     ? parseFloat(opts['relatedness-level'])
     : null;
+const PREDATOR_STARVATION_BASE = opts['predator-starvation-base']
+    ? parseInt(opts['predator-starvation-base'])
+    : null;
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -143,6 +146,13 @@ if (ENABLE_ALARM_SIGNALLING) {
 if (RELATEDNESS_LEVEL !== null) {
     Hyperparams.relatednessLevel = RELATEDNESS_LEVEL;
     console.log(`[headless] Relatedness level set to ${RELATEDNESS_LEVEL}`);
+}
+
+if (PREDATOR_STARVATION_BASE !== null) {
+    Hyperparams.predatorStarvationBase = PREDATOR_STARVATION_BASE;
+    console.log(
+        `[headless] Predator starvation base set to ${PREDATOR_STARVATION_BASE}`
+    );
 }
 
 // ─── Minimal engine shim ──────────────────────────────────────────────────────
