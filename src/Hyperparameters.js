@@ -4,10 +4,10 @@ const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 1000;
         this.predatorLifespanMultiplier = 1.2;
-        this.predatorReproductionMultiplier = 26;
+        this.predatorReproductionMultiplier = 26.5;
         this.predatorDecayRate = 0.5;
         this.predatorStartingFood = 0;
-        this.predatorStarvationBase = 1250; // base ticks before starving without meals
+        this.predatorStarvationBase = 1500; // base ticks before starving without meals
         
 
         this.foodProdProb = 0;

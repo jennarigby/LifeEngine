@@ -108,7 +108,7 @@ const FossilRecord = {
         this.predator_avg_lifespan.push(predatorAvg);
         this.species_counts.push(this.numExtantSpecies());
         this.av_mut_rates.push(this.env.averageMutability());
-        const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmProbability, 0) / preyOrgs.length : 0;
+        const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmStrength, 0) / preyOrgs.length : 0;
         this.av_alarm_probs.push(avgAlarm);
         this.calcCellCountAverages();
 

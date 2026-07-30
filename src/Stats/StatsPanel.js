@@ -2,14 +2,14 @@ const PopulationChart = require("./Charts/PopulationChart");
 const SpeciesChart = require("./Charts/SpeciesChart");
 const LineageChart = require("./Charts/LineageChart");
 const AvgSurvivalChart = require("./Charts/AvgSurvivalChart");
-const AlarmProbabilityChart = require("./Charts/AlarmProbabilityChart");
+const alarmStrengthChart = require("./Charts/alarmStrengthChart");
 const AlarmCallsChart = require("./Charts/AlarmCallsChart");
 const MutationChart = require("./Charts/MutationChart");
 const CellsChart = require("./Charts/CellsChart");
 const FossilRecord = require("./FossilRecord");
 
 
-const ChartSelections = [PopulationChart, SpeciesChart, LineageChart, AvgSurvivalChart, AlarmProbabilityChart, AlarmCallsChart, CellsChart, MutationChart];
+const ChartSelections = [PopulationChart, SpeciesChart, LineageChart, AvgSurvivalChart, alarmStrengthChart, AlarmCallsChart, CellsChart, MutationChart];
 
 class StatsPanel {
     constructor(env) {
@@ -63,7 +63,7 @@ class StatsPanel {
         $('#largest-org').text("Largest Organism Ever: " + this.env.largest_cell_count + " cells");
         $('#avg-mut').text("Average Mutation Rate: " + Math.round(this.env.averageMutability() * 100) / 100);
         const preyOrgs = this.env.organisms.filter(o => o.role === "prey" && o.living);
-        const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmProbability, 0) / preyOrgs.length : 0;
+        const avgAlarm = preyOrgs.length > 0 ? preyOrgs.reduce((sum, o) => sum + o.alarmStrength, 0) / preyOrgs.length : 0;
         $('#avg-alarm').text("Average Prey Alarm Probability: " + avgAlarm.toFixed(2));
     }
 

@@ -33,7 +33,7 @@ class Organism {
             this.generation = parent.generation + 1;
         } else {
             this.role = "prey";
-            this.alarmProbability = 0.5;
+            this.alarmStrength = Hyperparams.alarmSignallingEnabled ? 0.5 : 0;
             this.lineageId = this.generateLineageId();
             this.parentId = null;
             this.generation = 0;
@@ -123,22 +123,20 @@ class Organism {
 
         // identity
         this.species = parent.species;
-        if (this.role === "prey") {
-            //Bonus/Bias value:
-            // let bias = 0;
-            // if (parent.survivedAlarmCount > 0) {
-            //     bias += 0.01 * Math.min(parent.survivedAlarmCount, 5);
-            // }
-            // let mutation = (Math.random() - 0.5) * 0.05 + bias;
-            // this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
+        if (this.role === "prey") { 
+            
+            
+            if (Hyperparams.alarmSignallingEnabled) {
+                // Keep each lineage's alarm probability fixed so all descendants share the same value.
+                //this.alarmStrength = parent.alarmStrength;
 
-            //Without bias: 
-            //let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
-            //this.alarmProbability = Math.max(0, Math.min(1, parent.alarmProbability + mutation));
-            // Keep each lineage's alarm probability fixed so all descendants share the same value.
-            this.alarmProbability = parent.alarmProbability;
+                let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
+                this.alarmStrength = Math.max(0, Math.min(1, parent.alarmStrength + mutation));
+            } else {
+                this.alarmStrength = 0;
+            }
         } else {
-            this.alarmProbability = 0;
+            this.alarmStrength = 0;
         }
 
         this.parentId = parent.id;
@@ -149,22 +147,6 @@ class Organism {
 
     }
 
-
-    // detectPredator(radius = 15) {
-    //     let env = this.env;
-
-    //     for (let dx = -radius; dx <= radius; dx++) {
-    //         for (let dy = -radius; dy <= radius; dy++) {
-    //             let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-
-    //             if (cell && cell.owner && cell.owner.role === "predator") {
-    //                 //  console.log(`[ALARM][DETECT] Predator found near (${this.c}, ${this.r})`);
-    //                 return true;
-    //             }
-    //         }
-    //     }
-    //     return false;
-    // }
 
     detectPredator(radius = 15) {
         let radiusSq = radius * radius;
@@ -183,14 +165,14 @@ class Organism {
         let details = [
             `Caller ID: ${this.id}`,
             `Caller generation: ${this.generation}`,
-            `Caller p: ${this.alarmProbability.toFixed(2)}`
+            `Caller p: ${this.alarmStrength.toFixed(2)}`
         ];
 
         for (let recipient of recipients) {
             details.push(`Kin ID: ${recipient.id}`);
             details.push(`Relatedness: ${recipient.relatedness.toFixed(2)}`);
             details.push(`Generation: ${recipient.generation}`);
-            details.push(`p: ${recipient.alarmProbability.toFixed(2)}`);
+            details.push(`p: ${recipient.alarmStrength.toFixed(2)}`);
         }
 
         console.log(details.join(""));
@@ -215,14 +197,14 @@ class Organism {
                 org.alarmSource = { c: this.c, r: this.r };
 
                 if (r >= Hyperparams.relatednessLevel) {
-                    const intensity = Math.max(0.25, this.alarmProbability);
+                    
                     const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
-                    org.alarmTimer = Math.floor(20 + 80 * intensity * intensity);
+                    org.alarmTimer = Math.floor(20 + 80 * this.alarmStrength);
                     recipients.push({
                         id: org.id,
                         relatedness: r,
                         generation: org.generation,
-                        alarmProbability: org.alarmProbability
+                        alarmStrength: org.alarmStrength
                     });
                 } else {
                     org.alarmTimer = 5;  // non-kin barely react
@@ -606,13 +588,13 @@ class Organism {
                 if (
                     this.detectPredator(30) &&
                     this.alarmCooldown === 0 &&
-                    Math.random() < this.alarmProbability &&
+                    Math.random() < this.alarmStrength &&
                     this.detectKin() &&
                     !this.heardAlarm &&
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
                     shouldLogAlarmCall = true;
-                    this.alarmCallTimer = Math.max(20, Math.floor(20 + 60 * this.alarmProbability));
+                    this.alarmCallTimer = Math.max(20, Math.floor(20 + 60 * this.alarmStrength));
                     this.alarmCooldown = 3;
                     if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
                         this.env.alarmCallsThisWindow++;
@@ -628,8 +610,8 @@ class Organism {
 
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
-                    const intensity = Math.max(0.25, this.alarmProbability);
-                    const broadcastRadius = Math.floor(35 + 60 * intensity * intensity);
+                    //const intensity = Math.max(0.25, this.alarmStrength);
+                    const broadcastRadius = Math.floor(35 + 60 * this.alarmStrength );
                     this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
@@ -664,7 +646,7 @@ class Organism {
         let dontmove = false;
 
         if (this.anatomy.is_mover) {
-            if (this.anatomy.is_mover) {
+            
 
                 const Decision = Brain.Decision;
 
@@ -841,7 +823,7 @@ class Organism {
                     }
                 }
 
-            }
+            
         }
 
         this.heardAlarm = false;
@@ -889,23 +871,6 @@ class Organism {
         if (org.brain)
             this.brain.copy(org.brain)
     }
-
-    //Method for predators to detect prey in a certain radius
-    // detectPrey(radius = 15) {
-    //     let env = this.env;
-    //     for (let dx = -radius; dx <= radius; dx++) {
-    //         for (let dy = -radius; dy <= radius; dy++) {
-    //             let cell = env.grid_map.cellAt(this.c + dx, this.r + dy);
-    //             if (cell && cell.owner && cell.owner.role === "prey") {
-    //                 // never target prey inside safe zone
-    //                 if (!env.isInSafeZone(cell.owner.c, cell.owner.r)) {
-    //                     return cell.owner;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     return null;
-    // }
 
     detectPrey(radius = 30) {
         let radiusSq = radius * radius;

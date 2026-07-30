@@ -113,14 +113,14 @@ class WorldEnvironment extends Environment {
         if (currentTick > 0 && currentTick % 10000 === 0) {
             let prey = this.organisms.filter(o => o.role === "prey" && o.living);
             let avgP = prey.length > 0
-                ? prey.reduce((sum, o) => sum + o.alarmProbability, 0) / prey.length
+                ? prey.reduce((sum, o) => sum + o.alarmStrength, 0) / prey.length
                 : 0;
 
             // console.log(JSON.stringify({
             //     tick: currentTick,
             //     preyCount: prey.length,
             //     alarmCallsThisWindow: this.alarmCallsThisWindow,
-            //     avgAlarmProbability: avgP.toFixed(3)
+            //     avgalarmStrength: avgP.toFixed(3)
             // }));
         }
 

@@ -1,9 +1,9 @@
 const FossilRecord = require("../FossilRecord");
 const ChartController = require("./ChartController");
 
-class AlarmProbabilityChart extends ChartController {
+class alarmStrengthChart extends ChartController {
     constructor() {
-        super("Average Prey Alarm Probability", "Probability", "Average alarm signalling probability among living prey over time");
+        super("Average Prey Alarm Strength", "Strength", "Average alarm signalling strength among living prey over time");
     }
 
     setData() {
@@ -13,8 +13,8 @@ class AlarmProbabilityChart extends ChartController {
             markerType: "none",
             color: 'purple',
             showInLegend: true,
-            name: "Alarm Probability",
-            legendText: "Average Prey Alarm Probability",
+            name: "Alarm Strength",
+            legendText: "Average Prey Alarm Strength",
             dataPoints: []
         });
         this.addAllDataPoints();
@@ -27,4 +27,4 @@ class AlarmProbabilityChart extends ChartController {
     }
 }
 
-module.exports = AlarmProbabilityChart;
+module.exports = alarmStrengthChart;

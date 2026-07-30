@@ -2,6 +2,7 @@ const CellStates = require("./Cell/CellStates");
 const Organism = require("./Organism");
 const Directions = require('./Directions');
 const LineageColors = require('../Rendering/LineageColors');
+const Hyperparams = require("../Hyperparameters");
 
 class CustomOrganismGenerator {
 
@@ -29,7 +30,7 @@ class CustomOrganismGenerator {
                 cell.direction = eyeDirections[eyeIndex++];
             }
         }
-        org.alarmProbability = 0.5;
+        org.alarmStrength = Hyperparams.alarmSignallingEnabled ? 0.5 : 0;
 
         return org;
     }
@@ -118,16 +119,18 @@ class CustomOrganismGenerator {
             [centerCol, centerRow - 14],
             [centerCol, centerRow + 14]
         ];
-        const lineageAlarmProbabilities = [0, 0.25, 0.5, 0.75, 1];
+        const lineageAlarmProbabilities = Hyperparams.alarmSignallingEnabled 
+    ? [0.5, 0.5, 0.5, 0.5, 0.5] 
+    : [0, 0, 0, 0, 0];
 
         for (let clusterIndex = 0; clusterIndex < clusterAnchors.length; clusterIndex++) {
             let [anchorC, anchorR] = clusterAnchors[clusterIndex];
             let founder = this.createPrey(env, anchorC, anchorR);
-            founder.alarmProbability = lineageAlarmProbabilities[clusterIndex % lineageAlarmProbabilities.length];
+            founder.alarmStrength = lineageAlarmProbabilities[clusterIndex % lineageAlarmProbabilities.length];
             founder.id = founder.generateId ? founder.generateId() : `founder_${Date.now()}_${Math.random()}`;
             const lineageId = `lineage_${clusterIndex + 1}`;
             const lineageColor = LineageColors.getColor(lineageId);
-            console.log(`%c[Lineage ${clusterIndex + 1}] p=${Number(founder.alarmProbability).toFixed(2)} at (${anchorC}, ${anchorR})`, `color: ${lineageColor}; font-weight: bold;`);
+            console.log(`%c[Lineage ${clusterIndex + 1}] p=${Number(founder.alarmStrength).toFixed(2)} at (${anchorC}, ${anchorR})`, `color: ${lineageColor}; font-weight: bold;`);
             founder.lineageId = `lineage_${clusterIndex + 1}`;
             founder.generation = 0;
             founder.ancestors = [];
