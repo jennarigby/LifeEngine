@@ -3,11 +3,10 @@ const Neighbors = require("./Grid/Neighbors");
 const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 1000;
-        this.predatorLifespanMultiplier = 1.2;
-        this.predatorReproductionMultiplier = 24;
-        this.predatorDecayRate = 0.5;
+        this.predatorLifespanMultiplier = 1.5;
+        this.predatorReproductionMultiplier = 23;
         this.predatorStartingFood = 0;
-        this.predatorStarvationBase = 2500; // base ticks before starving without meals
+        this.predatorStarvationBase = 5000; // base ticks before starving without meals
         
 
         this.foodProdProb = 0;
