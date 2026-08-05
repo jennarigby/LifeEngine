@@ -73,6 +73,7 @@ const MAX_TICKS = parseInt(opts['max-ticks']);
 const OUTPUT = opts['output'] || 'results.json';
 const CONFIG = opts['config'] || null;
 const LOAD = opts['load'] || null;
+const SEED = opts['seed'] !== undefined ? Number(opts['seed']) : null;
 const LOG_EVERY = parseInt(opts['log-every'] || '10000');
 const GRID_WIDTH = opts['width'] ? parseInt(opts['width']) : null;
 const GRID_HEIGHT = opts['height'] ? parseInt(opts['height']) : null;
@@ -92,8 +93,9 @@ if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
         '  [--config    <params.json>]    override hyperparameters\n' +
         '  [--load      <save.json>]      start from a saved environment\n' +
         '  [--width     <N>]              grid width in columns (default: renderer default)\n' +
-        '  [--height    <N>]              grid height in rows   (default: renderer default)\n' +
+        '  [--height    <N>]              grid width in columns (default: renderer default)\n' +
         '  [--cell-size <N>]              pixel size of each cell (default 4)\n' +
+        '  [--seed      <N>]              force a deterministic seed for the run\n' +
         '  [--log-every <N>]              print progress every N ticks (default 10000)\n' +
         '  [--alarm-signalling]          enable prey alarm signalling'
     );
@@ -191,6 +193,11 @@ if (LOAD) {
     const raw = JSON.parse(fs.readFileSync(LOAD, 'utf8'));
     env.loadRaw(raw);
 
+    if (SEED !== null && !isNaN(SEED)) {
+        env.setSeed(SEED);
+        console.log(`[headless] Seed overridden to ${SEED}`);
+    }
+
     console.log(
         `[headless] Environment loaded from ${LOAD} (tick ${env.total_ticks})`
     );
@@ -260,6 +267,6 @@ console.log(
 
 const runData = FossilRecord.serialize();
 
-fs.writeFileSync(OUTPUT, JSON.stringify(runData, null, 2));
+fs.writeFileSync(OUTPUT, JSON.stringify(runData));
 
 console.log(`[headless] Results written to ${OUTPUT}`);

@@ -1,5 +1,5 @@
 const WorldConfig = {
-    headless: true,
+    headless: false,
     clear_walls_on_reset: false,
     auto_reset: false,
     auto_pause: false,
@@ -8,6 +8,7 @@ const WorldConfig = {
     // Tick value to stop at when `stop_on_tick` is true
     stop_tick_value: 10000000,
     brush_size: 2,
+    seed: 5,
 
     grid_cols: 400,
     grid_rows: 200,

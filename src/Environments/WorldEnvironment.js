@@ -10,6 +10,7 @@ const WorldConfig = require('../WorldConfig');
 const SerializeHelper = require('../Utils/SerializeHelper');
 const Species = require('../Stats/Species');
 const CustomOrganismGenerator = require('../Organism/CustomOrganismGenerator');
+const { normalizeSeed, getSafeZonePreset, getSpawnPreset, createSeededRng } = require('../WorldSeed');
 
 class WorldEnvironment extends Environment {
     constructor(engine, cell_size) {
@@ -30,6 +31,8 @@ class WorldEnvironment extends Environment {
         this.data_update_rate = 100;
         this._autoStopped = false;
         this.safeZones = [];
+        this.worldSeed = normalizeSeed(WorldConfig.seed);
+        this.seedRng = createSeededRng(this.worldSeed);
         this.alarmCallsThisWindow = 0;
         this.alarmCallWindowSize = 500;
         this.totalAlarmCallsLogged = 0;
@@ -37,23 +40,15 @@ class WorldEnvironment extends Environment {
         this.createSafeZone();
     }
 
+    setSeed(seed) {
+        this.worldSeed = normalizeSeed(seed);
+        WorldConfig.seed = this.worldSeed;
+        this.seedRng = createSeededRng(this.worldSeed);
+        this.createSafeZone();
+    }
+
     createSafeZone() {
-        var width = Math.max(4, Math.floor(this.grid_map.cols * 0.15));
-        var height = Math.max(4, Math.floor(this.grid_map.rows * 0.25));
-        this.safeZones = [
-            {
-                cMin: 1,
-                cMax: width + 1,
-                rMin: 1,
-                rMax: height + 1
-            },
-            {
-                cMin: Math.max(1, this.grid_map.cols - width - 1),
-                cMax: Math.max(1, this.grid_map.cols - 1),
-                rMin: Math.max(1, this.grid_map.rows - height - 1),
-                rMax: Math.max(1, this.grid_map.rows - 1)
-            }
-        ];
+        this.safeZones = getSafeZonePreset(this.worldSeed, this.grid_map.cols, this.grid_map.rows);
     }
 
     isInSafeZone(c, r) {
@@ -191,11 +186,16 @@ class WorldEnvironment extends Environment {
     }
 
     OriginOfLife() {
-        //Spawn initial organisms (custom amount)
-        CustomOrganismGenerator.spawnPopulation(this, 50, 50);
+        // Spawn initial organisms using the deterministic per-seed RNG.
+        const spawnPreset = getSpawnPreset(this.worldSeed, this.grid_map.cols, this.grid_map.rows);
+        CustomOrganismGenerator.spawnPopulation(this, 50, 50, spawnPreset, this.seedRng);
         // Register species
         for (let org of this.organisms) {
             FossilRecord.addSpecies(org, null);
+        }
+
+        if (!WorldConfig.headless) {
+            this.render();
         }
     }
 
@@ -361,6 +361,9 @@ class WorldEnvironment extends Environment {
         this.organisms = [];
         this.grid_map.fillGrid(CellStates.empty, !WorldConfig.clear_walls_on_reset);
         this.createSafeZone();
+        if (this.controller && typeof this.controller.resetView === 'function') {
+            this.controller.resetView();
+        }
         this.renderer.renderFullGrid(this.grid_map.grid);
         this.total_mutability = 0;
         this.total_ticks = 0;
@@ -444,6 +447,9 @@ class WorldEnvironment extends Environment {
             FossilRecord.addSpeciesObj(species[name]);
         FossilRecord.loadRaw(env.fossil_record);
         SerializeHelper.overwriteNonObjects(env, this);
+        if (env.seed !== undefined) {
+            this.setSeed(env.seed);
+        }
         if ($('#override-controls').is(':checked'))
             Hyperparams.loadJsonObj(env.controls)
         this.renderer.renderFullGrid(this.grid_map.grid);
