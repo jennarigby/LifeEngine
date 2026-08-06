@@ -213,7 +213,12 @@ if (LOAD) {
         );
     }
 
-    env.OriginOfLife();
+    if (SEED !== null && !isNaN(SEED)) {
+    env.setSeed(SEED);
+    console.log(`[headless] Seed set to ${SEED}`);
+}
+
+env.OriginOfLife();
 }
 
 // ─── Simulation loop ──────────────────────────────────────────────────────────
