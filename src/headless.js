@@ -85,6 +85,9 @@ const RELATEDNESS_LEVEL = opts['relatedness-level']
 const PREDATOR_STARVATION_BASE = opts['predator-starvation-base']
     ? parseInt(opts['predator-starvation-base'])
     : null;
+const PREDATOR_LIFESPAN_MULTIPLIER = opts['predator-lifespan-multiplier']
+    ? parseFloat(opts['predator-lifespan-multiplier'])
+    : null;
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -154,6 +157,13 @@ if (PREDATOR_STARVATION_BASE !== null) {
     Hyperparams.predatorStarvationBase = PREDATOR_STARVATION_BASE;
     console.log(
         `[headless] Predator starvation base set to ${PREDATOR_STARVATION_BASE}`
+    );
+}
+
+if (PREDATOR_LIFESPAN_MULTIPLIER !== null) {
+    Hyperparams.predatorLifespanMultiplier = PREDATOR_LIFESPAN_MULTIPLIER;
+    console.log(
+        `[headless] Predator lifespan multiplier set to ${PREDATOR_LIFESPAN_MULTIPLIER}`
     );
 }
 

@@ -544,7 +544,7 @@ class Organism {
             const starvationThreshold = Math.max(10, Math.floor(Hyperparams.predatorStarvationBase + this.lifetime * Hyperparams.predatorStarvationAgeFactor));
             if (this.ticksSinceMeal > starvationThreshold) {
                 this.die();
-                //console.log(`Died of starvation.` + this.ticksSinceMeal);
+                console.log(`Died of starvation.` + this.ticksSinceMeal);
                 //console.log(`Died of starvation.` + this.ticksSinceMeal);
                 return this.living;
             }
