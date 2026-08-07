@@ -33,12 +33,12 @@ const Hyperparams = {
         this.lookRange = 30;
         this.seeThroughSelf = false;
         this.alarmSignallingEnabled = false;
-        this.predatorAlarmResponseProbability = 0.7;        
+        this.predatorAlarmResponseProbability = 0.75;        
         this.preyAlarmSpeedMultiplier = 1;        
         this.evolveIndependentEyeDecisions = true;
         this.relatednessLevel = 0.125;
 
-        this.foodDropProb = 6;
+        this.foodDropProb = 5;
 
         this.extraMoverFoodCost = 0;
 

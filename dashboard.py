@@ -393,8 +393,8 @@ with tab_ls3:
     st.plotly_chart(fig, use_container_width=True)
 
 # ── Alarm probability chart ───────────────────────────────────────────────────
-st.header("Average Alarm Probability (p) Over Time")
-fig = make_chart("alarm_prob", "Average p", "Alarm Probability Over Time", show_std=True)
+st.header("Average Alarm Strength  Over Time")
+fig = make_chart("alarm_prob", "Average strength", "Alarm Strength Over Time", show_std=True)
 fig.add_hline(y=0.5, line_dash="dot", line_color="gray", annotation_text="Starting p=0.5")
 fig.update_layout(yaxis=dict(range=[0, 1]))
 st.plotly_chart(fig, use_container_width=True)

@@ -88,6 +88,9 @@ const PREDATOR_STARVATION_BASE = opts['predator-starvation-base']
 const PREDATOR_LIFESPAN_MULTIPLIER = opts['predator-lifespan-multiplier']
     ? parseFloat(opts['predator-lifespan-multiplier'])
     : null;
+const PREDATOR_REPRODUCTION_MULTIPLIER = opts['predator-reproduction-multiplier']
+    ? parseFloat(opts['predator-reproduction-multiplier'])
+    : null;
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -164,6 +167,13 @@ if (PREDATOR_LIFESPAN_MULTIPLIER !== null) {
     Hyperparams.predatorLifespanMultiplier = PREDATOR_LIFESPAN_MULTIPLIER;
     console.log(
         `[headless] Predator lifespan multiplier set to ${PREDATOR_LIFESPAN_MULTIPLIER}`
+    );
+}
+
+if (PREDATOR_REPRODUCTION_MULTIPLIER !== null) {
+    Hyperparams.predatorReproductionMultiplier = PREDATOR_REPRODUCTION_MULTIPLIER;
+    console.log(
+        `[headless] Predator reproduction multiplier set to ${PREDATOR_REPRODUCTION_MULTIPLIER}`
     );
 }
 
