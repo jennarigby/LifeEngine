@@ -38,7 +38,10 @@ def parse_filename(filename):
     return group, seed, run
 
 # ── Load data ─────────────────────────────────────────────────────────────────
-@st.cache_data
+# Cached on file content as a fallback, but the real gate is the session_state
+# lookup below (keyed on Streamlit's stable file_id) — that's what stops every
+# rerun from re-reading and re-hashing the raw bytes of files that haven't changed.
+@st.cache_data(show_spinner=False)
 def load_run(file_bytes, filename):
     data = json.loads(file_bytes)
     records = data.get("records", data)
@@ -59,10 +62,14 @@ def load_run(file_bytes, filename):
         "species": records.get("species_counts", []),
     }
 
+if "parsed_runs" not in st.session_state:
+    st.session_state.parsed_runs = {}
+
 runs = []
 for f in uploaded_files:
-    run = load_run(f.read(), f.name)
-    runs.append(run)
+    if f.file_id not in st.session_state.parsed_runs:
+        st.session_state.parsed_runs[f.file_id] = load_run(f.read(), f.name)
+    runs.append(st.session_state.parsed_runs[f.file_id])
 
 all_groups = sorted(set(r["group"] for r in runs))
 all_seeds = sorted(set(r["seed"] for r in runs))
@@ -122,16 +129,21 @@ def get_experiment_group(run_name):
 
 # ── Interpolation helpers ─────────────────────────────────────────────────────
 def interpolate_to_ticks(ticks, values, target_ticks):
-    if not ticks or not values:
+    """Linear interpolation onto a common set of ticks.
+
+    Uses np.interp instead of a pandas Series index-union + interpolate,
+    which is noticeably faster for long tick arrays and avoids rebuilding
+    a pandas index on every call. Assumes `ticks` is sorted (tick_record
+    should already be monotonic).
+    """
+    if not ticks or not values or not target_ticks:
         return [None] * len(target_ticks)
-    tick_val_pairs = {}
-    for t, v in zip(ticks, values):
-        tick_val_pairs[t] = v
-    clean_ticks = list(tick_val_pairs.keys())
-    clean_values = list(tick_val_pairs.values())
-    s = pd.Series(clean_values, index=clean_ticks)
-    s = s.reindex(s.index.union(target_ticks)).interpolate(method='index').reindex(target_ticks)
-    return s.tolist()
+    ticks_arr = np.asarray(ticks, dtype=float)
+    values_arr = np.asarray(values, dtype=float)
+    target_arr = np.asarray(target_ticks, dtype=float)
+    # np.interp clamps outside the source range to the end values, which
+    # matches how the old reindex/interpolate behaved for in-range points.
+    return np.interp(target_arr, ticks_arr, values_arr).tolist()
 
 def get_common_ticks(run_list):
     if not run_list:
@@ -150,6 +162,17 @@ def average_runs(run_list, field):
     avg_vals = df.mean(axis=1).tolist()
     std_vals = df.std(axis=1).tolist()
     return target_ticks, avg_vals, std_vals
+
+# Memoize average_runs within a single script run: several charts (e.g. the
+# "Both" population/lifespan views) ask for the same (runs, field) combo that
+# another chart just computed. Without this, that work happens twice per
+# rerun; with several groups/seeds it adds up fast.
+_avg_cache = {}
+def average_runs_cached(run_list, field):
+    key = (tuple(sorted(r["name"] for r in run_list)), field)
+    if key not in _avg_cache:
+        _avg_cache[key] = average_runs(run_list, field)
+    return _avg_cache[key]
 
 # ── Filter runs ───────────────────────────────────────────────────────────────
 filtered_runs = [r for r in runs if r["group"] in selected_groups and r["seed"] in selected_seeds]
@@ -185,8 +208,9 @@ if view_mode == "Group comparison (averaged)":
             "Avg Predators": avg([avg(r["predators"]) for r in group_runs if r["predators"]]),
             "Peak Prey (avg)": avg([max(r["prey"]) for r in group_runs if r["prey"]]),
             "Peak Predators (avg)": avg([max(r["predators"]) for r in group_runs if r["predators"]]),
-            "Avg Alarm p": avg([avg(r["alarm_prob"]) for r in group_runs if r["alarm_prob"]]),
-            "Final Alarm p (avg)": avg([r["alarm_prob"][-1] for r in group_runs if r["alarm_prob"]]),
+            "Avg Prey Lifespan": avg([avg(r["prey_lifespan"]) for r in group_runs if r["prey_lifespan"]]),
+            "Avg Alarm strength": avg([avg(r["alarm_prob"]) for r in group_runs if r["alarm_prob"]]),
+            "Final Alarm strength (avg)": avg([r["alarm_prob"][-1] for r in group_runs if r["alarm_prob"]]),
         })
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
@@ -211,6 +235,54 @@ elif view_mode == "Per-seed comparison":
 else:
     st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
+# ── Predator extinction events ────────────────────────────────────────────────
+st.header("Predator Extinction Events")
+st.caption("A run counts as an extinction if the predator population hits zero at any point during the run, not just at the end.")
+ 
+def went_extinct(predator_counts):
+    """True if predators established (count > 0 at some point) and later
+    dropped back to zero. Ignores the leading zeros at the start of a run
+    before predators are introduced."""
+    if not predator_counts:
+        return False
+    established = False
+    for p in predator_counts:
+        if not established:
+            if p > 0:
+                established = True
+            continue
+        if p == 0:
+            return True
+    return False
+ 
+extinction_rows = []
+for group in selected_groups:
+    group_runs = [r for r in filtered_runs if r["group"] == group]
+    if not group_runs:
+        continue
+    extinct_runs = [r for r in group_runs if went_extinct(r["predators"])]
+    extinction_rows.append({
+        "Group": group,
+        "Runs": len(group_runs),
+        "Extinctions": len(extinct_runs),
+        "Extinction Rate": round(len(extinct_runs) / len(group_runs), 2) if group_runs else 0,
+    })
+ 
+extinction_df = pd.DataFrame(extinction_rows)
+st.dataframe(extinction_df, use_container_width=True, hide_index=True)
+ 
+if not extinction_df.empty:
+    fig = go.Figure(go.Bar(
+        x=extinction_df["Group"],
+        y=extinction_df["Extinctions"],
+        text=extinction_df["Extinctions"],
+        textposition="outside",
+        marker_color=[get_group_color(g) for g in extinction_df["Group"]]
+    ))
+    fig.update_layout(xaxis_title="Group", yaxis_title="Runs with a predator extinction",
+                      hovermode="x", height=400)
+    st.plotly_chart(fig, use_container_width=True, key="chart_predator_extinction")
+
 # ── Chart helper ──────────────────────────────────────────────────────────────
 def make_chart(field, ylabel, title, show_std=True):
     fig = go.Figure()
@@ -220,7 +292,7 @@ def make_chart(field, ylabel, title, show_std=True):
             group_runs = [r for r in filtered_runs if r["group"] == group]
             if not group_runs:
                 continue
-            ticks, avg_vals, std_vals = average_runs(group_runs, field)
+            ticks, avg_vals, std_vals = average_runs_cached(group_runs, field)
             smoothed = smooth_series(avg_vals, smooth)
             color = get_color(group, i)
             fig.add_trace(go.Scatter(x=ticks, y=smoothed, name=group, line=dict(color=color)))
@@ -239,7 +311,7 @@ def make_chart(field, ylabel, title, show_std=True):
                 seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
                 if not seed_runs:
                     continue
-                ticks, avg_vals, _ = average_runs(seed_runs, field)
+                ticks, avg_vals, _ = average_runs_cached(seed_runs, field)
                 smoothed = smooth_series(avg_vals, smooth)
                 color = get_color(group, i)
                 fig.add_trace(go.Scatter(
@@ -262,24 +334,26 @@ def make_chart(field, ylabel, title, show_std=True):
     return fig
 
 # ── Population charts ─────────────────────────────────────────────────────────
+# Was st.tabs (all three charts computed every rerun regardless of which tab
+# was open). A radio only computes the branch that's actually shown.
 st.header("Population Over Time")
-tab1, tab2, tab3 = st.tabs(["Prey", "Predators", "Both"])
+pop_choice = st.radio("Show", ["Prey", "Predators", "Both"], horizontal=True, key="pop_choice")
 
-with tab1:
+if pop_choice == "Prey":
     st.plotly_chart(make_chart("prey", "Prey population", "Prey Population Over Time"), use_container_width=True)
 
-with tab2:
+elif pop_choice == "Predators":
     st.plotly_chart(make_chart("predators", "Predator population", "Predator Population Over Time"), use_container_width=True)
 
-with tab3:
+else:
     fig = go.Figure()
     if view_mode == "Group comparison (averaged)":
         for i, group in enumerate(selected_groups):
             group_runs = [r for r in filtered_runs if r["group"] == group]
             if not group_runs:
                 continue
-            ticks, prey_avg, _ = average_runs(group_runs, "prey")
-            _, pred_avg, _ = average_runs(group_runs, "predators")
+            ticks, prey_avg, _ = average_runs_cached(group_runs, "prey")
+            _, pred_avg, _ = average_runs_cached(group_runs, "predators")
             color = get_color(group, i)
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
                                      name=f"{group} — prey", line=dict(color=color)))
@@ -291,8 +365,8 @@ with tab3:
                 seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
                 if not seed_runs:
                     continue
-                ticks, prey_avg, _ = average_runs(seed_runs, "prey")
-                _, pred_avg, _ = average_runs(seed_runs, "predators")
+                ticks, prey_avg, _ = average_runs_cached(seed_runs, "prey")
+                _, pred_avg, _ = average_runs_cached(seed_runs, "predators")
                 color = get_color(group, i)
                 dash = ["solid", "dash", "dot", "dashdot"][j % 4]
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
@@ -312,7 +386,7 @@ with tab3:
 
 # ── Lifespan chart ────────────────────────────────────────────────────────────
 st.header("Average Lifespan Over Time")
-tab_ls1, tab_ls2, tab_ls3 = st.tabs(["Prey", "Predators", "Both"])
+lifespan_choice = st.radio("Show", ["Prey", "Predators", "Both"], horizontal=True, key="lifespan_choice")
 
 def make_lifespan_fig(field, ylabel):
     fig = go.Figure()
@@ -321,7 +395,7 @@ def make_lifespan_fig(field, ylabel):
             group_runs = [r for r in filtered_runs if r["group"] == group]
             if not group_runs:
                 continue
-            ticks, avg_vals, _ = average_runs(group_runs, field)
+            ticks, avg_vals, _ = average_runs_cached(group_runs, field)
             color = get_color(group, i, pred=(field == "predator_lifespan"))
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(avg_vals, smooth),
                                      name=group, line=dict(color=color)))
@@ -331,7 +405,7 @@ def make_lifespan_fig(field, ylabel):
                 seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
                 if not seed_runs:
                     continue
-                ticks, avg_vals, _ = average_runs(seed_runs, field)
+                ticks, avg_vals, _ = average_runs_cached(seed_runs, field)
                 color = get_color(group, i, pred=(field == "predator_lifespan"))
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(avg_vals, smooth),
                                          name=f"{group} seed{seed}",
@@ -345,21 +419,21 @@ def make_lifespan_fig(field, ylabel):
     fig.update_layout(xaxis_title="Tick", yaxis_title=ylabel, hovermode="x unified", height=420)
     return fig
 
-with tab_ls1:
+if lifespan_choice == "Prey":
     st.plotly_chart(make_lifespan_fig("prey_lifespan", "Avg prey lifespan (ticks)"), use_container_width=True)
 
-with tab_ls2:
+elif lifespan_choice == "Predators":
     st.plotly_chart(make_lifespan_fig("predator_lifespan", "Avg predator lifespan (ticks)"), use_container_width=True)
 
-with tab_ls3:
+else:
     fig = go.Figure()
     if view_mode == "Group comparison (averaged)":
         for i, group in enumerate(selected_groups):
             group_runs = [r for r in filtered_runs if r["group"] == group]
             if not group_runs:
                 continue
-            ticks, prey_avg, _ = average_runs(group_runs, "prey_lifespan")
-            _, pred_avg, _ = average_runs(group_runs, "predator_lifespan")
+            ticks, prey_avg, _ = average_runs_cached(group_runs, "prey_lifespan")
+            _, pred_avg, _ = average_runs_cached(group_runs, "predator_lifespan")
             color_p = get_color(group, i)
             color_pred = get_color(group, i, pred=True)
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
@@ -372,8 +446,8 @@ with tab_ls3:
                 seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
                 if not seed_runs:
                     continue
-                ticks, prey_avg, _ = average_runs(seed_runs, "prey_lifespan")
-                _, pred_avg, _ = average_runs(seed_runs, "predator_lifespan")
+                ticks, prey_avg, _ = average_runs_cached(seed_runs, "prey_lifespan")
+                _, pred_avg, _ = average_runs_cached(seed_runs, "predator_lifespan")
                 color = get_color(group, i)
                 dash = ["solid", "dash", "dot", "dashdot"][j % 4]
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
@@ -448,14 +522,13 @@ if scatter_x:
                 gnames.append(r["name"])
         if gx:
             fig.add_trace(go.Scatter(
-                x=gx, y=gy,
-                mode="markers+text",
-                name=group,
-                text=gnames,
-                textposition="top center",
-                marker=dict(color=get_group_color(group), size=10),
-                hovertemplate="<b>%{text}</b><br>Avg p: %{x}<br>Avg lifespan: %{y}<extra></extra>"
-            ))
+            x=gx, y=gy,
+            mode="markers",
+            name=group,
+            marker=dict(color=get_group_color(group), size=10),
+            hovertemplate="<b>%{text}</b><br>Avg p: %{x}<br>Avg lifespan: %{y}<extra></extra>",
+            text=gnames
+        ))
 
     if len(scatter_x) > 1:
         z = np.polyfit(scatter_x, scatter_y, 1)
@@ -473,32 +546,18 @@ if scatter_x:
     st.plotly_chart(fig, use_container_width=True, key="chart_scatter_p_lifespan")
 
 # ── Comparison bar charts ─────────────────────────────────────────────────────
+# Was st.tabs across every group + "All Groups" — all computed every rerun.
+# A selectbox only builds the one bar chart actually being viewed.
 st.header("Run Comparison (Averages Across All Runs)")
-tab_labels = [g for g in selected_groups] + ["📊 All Groups"]
-tabs = st.tabs(tab_labels)
+comparison_group_choice = st.selectbox(
+    "Group", selected_groups + ["📊 All Groups"], key="comparison_group_choice"
+)
 
-for i, group in enumerate(selected_groups):
-    with tabs[i]:
-        group_df = summary_df[summary_df["Group"] == group]
-        avg_prey = avg(group_df["Avg Prey"].tolist())
-        avg_predator = avg(group_df["Avg Predator"].tolist())
-        avg_prey_lifespan = avg(group_df["Avg Prey Lifespan"].tolist())
-        avg_peak_prey = avg(group_df["Peak Prey"].tolist())
-        fig = go.Figure(go.Bar(
-            x=["Avg Prey Population", "Avg Predator Population", "Avg Prey Lifespan (ticks)", "Peak Prey Population"],
-            y=[avg_prey, avg_predator, avg_prey_lifespan, avg_peak_prey],
-            text=[f"{avg_prey:.1f}", f"{avg_predator:.1f}", f"{avg_prey_lifespan:.1f}", f"{avg_peak_prey:.1f}"],
-            textposition="outside",
-            marker_color=["#1f77b4", "#d62728", "#ff7f0e", "#2ca02c"]
-        ))
-        fig.update_layout(yaxis_title="Value", hovermode="x", height=400)
-        st.plotly_chart(fig, use_container_width=True, key=f"chart_comparison_{i}")
-
-with tabs[-1]:
-    avg_prey = avg(summary_df["Avg Prey"].tolist())
-    avg_predator = avg(summary_df["Avg Predator"].tolist())
-    avg_prey_lifespan = avg(summary_df["Avg Prey Lifespan"].tolist())
-    avg_peak_prey = avg(summary_df["Peak Prey"].tolist())
+def render_comparison_bar(df, key):
+    avg_prey = avg(df["Avg Prey"].tolist())
+    avg_predator = avg(df["Avg Predator"].tolist())
+    avg_prey_lifespan = avg(df["Avg Prey Lifespan"].tolist())
+    avg_peak_prey = avg(df["Peak Prey"].tolist())
     fig = go.Figure(go.Bar(
         x=["Avg Prey Population", "Avg Predator Population", "Avg Prey Lifespan (ticks)", "Peak Prey Population"],
         y=[avg_prey, avg_predator, avg_prey_lifespan, avg_peak_prey],
@@ -507,50 +566,39 @@ with tabs[-1]:
         marker_color=["#1f77b4", "#d62728", "#ff7f0e", "#2ca02c"]
     ))
     fig.update_layout(yaxis_title="Value", hovermode="x", height=400)
-    st.plotly_chart(fig, use_container_width=True, key="chart_comparison_all")
+    st.plotly_chart(fig, use_container_width=True, key=key)
+
+if comparison_group_choice == "📊 All Groups":
+    render_comparison_bar(summary_df, "chart_comparison_all")
+else:
+    render_comparison_bar(summary_df[summary_df["Group"] == comparison_group_choice], "chart_comparison_group")
 
 # ── Alarm strength bar chart ──────────────────────────────────────────────────
 st.header("Alarm Signal Strength per Run")
-tab_labels = [g for g in selected_groups] + ["📊 All Runs"]
-tabs = st.tabs(tab_labels)
+alarm_group_choice = st.selectbox(
+    "Group", selected_groups + ["📊 All Runs"], key="alarm_group_choice"
+)
 
-for i, group in enumerate(selected_groups):
-    with tabs[i]:
-        group_df = summary_df[summary_df["Group"] == group]
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            name="Avg Alarm strength",
-            x=group_df["Run"],
-            y=group_df["Avg Alarm strength"],
-            marker_color="#1f77b4"
-        ))
-        fig.add_trace(go.Bar(
-            name="Final Alarm strength",
-            x=group_df["Run"],
-            y=group_df["Final Alarm strength"],
-            marker_color="#ff7f0e"
-        ))
-        fig.update_layout(barmode="group", xaxis_title="Run",
-                          yaxis_title="Alarm Signal Strength",
-                          yaxis=dict(range=[0, 1]), hovermode="x", height=400)
-        st.plotly_chart(fig, use_container_width=True, key=f"chart_alarm_strength_{i}")
-
-with tabs[-1]:
+def render_alarm_bar(df, key):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         name="Avg Alarm strength",
-        x=summary_df["Run"],
-        y=summary_df["Avg Alarm strength"],
+        x=df["Run"],
+        y=df["Avg Alarm strength"],
         marker_color="#1f77b4"
     ))
     fig.add_trace(go.Bar(
         name="Final Alarm strength",
-        x=summary_df["Run"],
-        y=summary_df["Final Alarm strength"],
+        x=df["Run"],
+        y=df["Final Alarm strength"],
         marker_color="#ff7f0e"
     ))
     fig.update_layout(barmode="group", xaxis_title="Run",
                       yaxis_title="Alarm Signal Strength",
                       yaxis=dict(range=[0, 1]), hovermode="x", height=400)
-    st.plotly_chart(fig, use_container_width=True, key="chart_alarm_strength_all")
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
+if alarm_group_choice == "📊 All Runs":
+    render_alarm_bar(summary_df, "chart_alarm_strength_all")
+else:
+    render_alarm_bar(summary_df[summary_df["Group"] == alarm_group_choice], "chart_alarm_strength_group")

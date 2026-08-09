@@ -53,7 +53,7 @@ class Organism {
         this.heardAlarm = false;
         this.alarmCooldown = 0;
         this.alarmCallTimer = 0;
-        this.alarmTimer = 0;
+        this.fleeTimer = 0;
         this.alarmSource = null;
         this.survivedAlarmCount = 0;
 
@@ -199,7 +199,7 @@ class Organism {
                 if (r >= Hyperparams.relatednessLevel) {
                     
                     const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
-                    org.alarmTimer = Math.floor(20 + 70 * this.alarmStrength);
+                    org.fleeTimer = Math.floor(20 + 50 * this.alarmStrength);
                     recipients.push({
                         id: org.id,
                         relatedness: r,
@@ -207,7 +207,7 @@ class Organism {
                         alarmStrength: org.alarmStrength
                     });
                 } else {
-                    org.alarmTimer = 5;  // non-kin barely react
+                    org.fleeTimer = 5;  // non-kin barely react
                 }
             }
         }
@@ -531,8 +531,8 @@ class Organism {
 
     update() {
         if (this.alarmCooldown > 0) this.alarmCooldown--;
-        if (this.alarmTimer > 0) this.alarmTimer--;
-        // if (this.role === "prey" && this.alarmTimer === 1 && this.living) {
+        if (this.fleeTimer > 0) this.fleeTimer--;
+        // if (this.role === "prey" && this.fleeTimer === 1 && this.living) {
         //     this.survivedAlarmCount = (this.survivedAlarmCount || 0) + 1;
         // }
 
@@ -594,7 +594,7 @@ class Organism {
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
                     shouldLogAlarmCall = true;
-                    this.alarmCallTimer =  Math.floor(20 + 50 * this.alarmStrength);
+                    this.alarmCallTimer =  Math.floor(20 + 30 * this.alarmStrength);
                     this.alarmCooldown = 3;
                     if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
                         this.env.alarmCallsThisWindow++;
@@ -611,7 +611,7 @@ class Organism {
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
                     //const intensity = Math.max(0.25, this.alarmStrength);
-                    const broadcastRadius = Math.floor(30 + 60 * this.alarmStrength );
+                    const broadcastRadius = Math.floor(30 + 40 * this.alarmStrength );
                     this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
                     //this.food_collected = Math.max(0, this.food_collected - 0.2);
                 }
@@ -626,7 +626,7 @@ class Organism {
 
             } else {
                 this.isCallingAlarm = false;
-                this.alarmTimer = 0;
+                this.fleeTimer = 0;
                 this.alarmSource = null;
                 this.alarmMovePenalty = false;
             }
@@ -738,7 +738,7 @@ class Organism {
                         this.changeDirection(Directions.fromVector(dx, dy));
                         brain_decision = Decision.neutral;
                     }
-                } else if (this.role === "prey" && this.alarmTimer > 0 && this.alarmSource) {
+                } else if (this.role === "prey" && this.fleeTimer > 0 && this.alarmSource) {
                     // hearer: flee away from alarm source
                     let dx = this.c - this.alarmSource.c;
                     let dy = this.r - this.alarmSource.r;
@@ -803,7 +803,7 @@ class Organism {
 
                 // MOVE
                 let moveAttempts = 1;
-                if (this.role === "prey" && this.alarmTimer > 0) {
+                if (this.role === "prey" && this.fleeTimer > 0) {
                     moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier || 1));
                 }
 
