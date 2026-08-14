@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import numpy as np
 import re
 from pathlib import Path
@@ -38,9 +37,6 @@ def parse_filename(filename):
     return group, seed, run
 
 # ── Load data ─────────────────────────────────────────────────────────────────
-# Cached on file content as a fallback, but the real gate is the session_state
-# lookup below (keyed on Streamlit's stable file_id) — that's what stops every
-# rerun from re-reading and re-hashing the raw bytes of files that haven't changed.
 @st.cache_data(show_spinner=False)
 def load_run(file_bytes, filename):
     data = json.loads(file_bytes)
@@ -108,24 +104,89 @@ def smooth_series(series, window):
 def avg(series):
     return round(sum(series) / len(series), 2) if series else 0
 
-# ── Color helpers ─────────────────────────────────────────────────────────────
-colors = px.colors.qualitative.Set2
-colors_pred = px.colors.qualitative.Set1
+# ── Thesis-grade styling ───────────────────────────────────────────────────────
+# A single colorblind-safe, print-friendly palette (Okabe–Ito) used everywhere,
+# so every figure in the report reads consistently.
+PALETTE = ["#0072B2", "#D55E00", "#009E73", "#E69F00",
+           "#CC79A7", "#56B4E9", "#F0E442", "#000000"]
 
-group_color_map = {group: colors[i % len(colors)] for i, group in enumerate(all_groups)}
+# Fixed chart footprint used across the whole dashboard so every figure has
+# the same, thesis-friendly proportions instead of being a thin wide strip
+# (but not a perfect square either).
+CHART_HEIGHT = 380
+
+group_color_map = {group: PALETTE[i % len(PALETTE)] for i, group in enumerate(all_groups)}
 
 def get_group_color(group):
-    return group_color_map.get(group, "#888888")
+    return group_color_map.get(group, "#555555")
 
 def get_color(name, index, pred=False):
-    palette = colors_pred if pred else colors
-    return palette[index % len(palette)]
+    # `pred=True` shifts along the same shared palette (instead of switching
+    # to a completely different color set) so predator/prey series still look
+    # like they belong to the same figure family.
+    offset = len(all_groups) if pred else 0
+    return PALETTE[(index + offset) % len(PALETTE)]
 
 def get_experiment_group(run_name):
     for g in all_groups:
         if run_name.startswith(g):
             return g
     return run_name.split("_seed")[0] if "_seed" in run_name else run_name
+
+def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None):
+    """Apply one consistent, thesis-ready look to every chart: professional
+    palette already applied per-trace, axes boxed and anchored at the
+    origin/corner, matching size, and a clean white background suitable for
+    print.
+
+    `title`, if given, sets the chart's title text. Charts that already set
+    their own title text (via an earlier update_layout call) don't need to
+    pass this — it merges with, rather than blanks out, whatever text is
+    already there."""
+    title_dict = dict(font=dict(size=15, color="#222222"))
+    if title is not None:
+        title_dict["text"] = title
+    fig.update_layout(
+        height=height,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(family="Arial", size=13, color="#222222"),
+        title=title_dict,
+        legend=dict(
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#cccccc",
+            borderwidth=1,
+            font=dict(size=11)
+        ),
+        margin=dict(l=70, r=30, t=60, b=60),
+    )
+    axis_kwargs = dict(
+        showgrid=True,
+        gridcolor="#e6e6e6",
+        gridwidth=1,
+        showline=True,
+        linewidth=1,
+        linecolor="#333333",
+        zeroline=True,
+        zerolinecolor="#333333",
+        zerolinewidth=1,
+        mirror=True,
+        ticks="outside",
+        tickcolor="#333333",
+    )
+    fig.update_xaxes(rangemode="tozero", **axis_kwargs)
+    if y_range is not None:
+        fig.update_yaxes(range=y_range, **axis_kwargs)
+    else:
+        fig.update_yaxes(rangemode="tozero", **axis_kwargs)
+    return fig
+
+def show_chart(fig, key=None):
+    """Render a chart inside a constrained center column so the fixed height
+    isn't stretched into a thin panoramic strip across the full wide layout."""
+    left, mid, right = st.columns([1, 8, 1])
+    with mid:
+        st.plotly_chart(fig, use_container_width=True, key=key)
 
 # ── Interpolation helpers ─────────────────────────────────────────────────────
 def interpolate_to_ticks(ticks, values, target_ticks):
@@ -238,7 +299,7 @@ else:
 # ── Predator extinction events ────────────────────────────────────────────────
 st.header("Predator Extinction Events")
 st.caption("A run counts as an extinction if the predator population hits zero at any point during the run, not just at the end.")
- 
+
 def went_extinct(predator_counts):
     """True if predators established (count > 0 at some point) and later
     dropped back to zero. Ignores the leading zeros at the start of a run
@@ -254,7 +315,7 @@ def went_extinct(predator_counts):
         if p == 0:
             return True
     return False
- 
+
 extinction_rows = []
 for group in selected_groups:
     group_runs = [r for r in filtered_runs if r["group"] == group]
@@ -267,10 +328,10 @@ for group in selected_groups:
         "Extinctions": len(extinct_runs),
         "Extinction Rate": round(len(extinct_runs) / len(group_runs), 2) if group_runs else 0,
     })
- 
+
 extinction_df = pd.DataFrame(extinction_rows)
 st.dataframe(extinction_df, use_container_width=True, hide_index=True)
- 
+
 if not extinction_df.empty:
     fig = go.Figure(go.Bar(
         x=extinction_df["Group"],
@@ -279,12 +340,12 @@ if not extinction_df.empty:
         textposition="outside",
         marker_color=[get_group_color(g) for g in extinction_df["Group"]]
     ))
-    fig.update_layout(xaxis_title="Group", yaxis_title="Runs with a predator extinction",
-                      hovermode="x", height=400)
-    st.plotly_chart(fig, use_container_width=True, key="chart_predator_extinction")
+    fig.update_layout(xaxis_title="Group", yaxis_title="Runs with a predator extinction")
+    style_figure(fig, title="Predator Extinctions by Group")
+    show_chart(fig, key="chart_predator_extinction")
 
 # ── Chart helper ──────────────────────────────────────────────────────────────
-def make_chart(field, ylabel, title, show_std=True):
+def make_chart(field, ylabel, title, show_std=False, y_range=None):
     fig = go.Figure()
 
     if view_mode == "Group comparison (averaged)":
@@ -295,14 +356,24 @@ def make_chart(field, ylabel, title, show_std=True):
             ticks, avg_vals, std_vals = average_runs_cached(group_runs, field)
             smoothed = smooth_series(avg_vals, smooth)
             color = get_color(group, i)
-            fig.add_trace(go.Scatter(x=ticks, y=smoothed, name=group, line=dict(color=color)))
+            fig.add_trace(go.Scatter(
+                x=ticks, y=smoothed, name=group,
+                line=dict(color=color, width=2)
+            ))
             if show_std and std_vals:
-                upper = [a + s if a is not None and s is not None else None for a, s in zip(smoothed, std_vals)]
-                lower = [a - s if a is not None and s is not None else None for a, s in zip(smoothed, std_vals)]
+                upper = [a + s if a is not None and s is not None else None
+                         for a, s in zip(smoothed, std_vals)]
+                lower = [a - s if a is not None and s is not None else None
+                         for a, s in zip(smoothed, std_vals)]
                 fig.add_trace(go.Scatter(
-                    x=ticks + ticks[::-1], y=upper + lower[::-1],
-                    fill='toself', fillcolor=color, opacity=0.15,
-                    line=dict(width=0), showlegend=False, name=f"{group} ± std"
+                    x=ticks + ticks[::-1],
+                    y=upper + lower[::-1],
+                    fill='toself',
+                    fillcolor=color,
+                    opacity=0.08,
+                    line=dict(width=0),
+                    showlegend=False,
+                    name=f"{group} ± std"
                 ))
 
     elif view_mode == "Per-seed comparison":
@@ -317,7 +388,8 @@ def make_chart(field, ylabel, title, show_std=True):
                 fig.add_trace(go.Scatter(
                     x=ticks, y=smoothed,
                     name=f"{group} seed{seed}",
-                    line=dict(color=color, dash=["solid", "dash", "dot", "dashdot"][j % 4])
+                    line=dict(color=color, width=2,
+                              dash=["solid", "dash", "dot", "dashdot"][j % 4])
                 ))
 
     else:
@@ -326,24 +398,27 @@ def make_chart(field, ylabel, title, show_std=True):
             fig.add_trace(go.Scatter(
                 x=r["ticks"], y=smoothed,
                 name=f"{r['group']} s{r['seed']} r{r['run']}",
-                line=dict(color=get_color(r["group"], all_groups.index(r["group"])))
+                line=dict(color=get_color(r["group"], all_groups.index(r["group"])), width=2)
             ))
 
-    fig.update_layout(title=title, xaxis_title="Tick", yaxis_title=ylabel,
-                      hovermode="x unified", height=420)
+    fig.update_layout(
+        title=dict(text=title),
+        xaxis_title="Tick",
+        yaxis_title=ylabel,
+        hovermode="x unified",
+    )
+    style_figure(fig, y_range=y_range)
     return fig
 
 # ── Population charts ─────────────────────────────────────────────────────────
-# Was st.tabs (all three charts computed every rerun regardless of which tab
-# was open). A radio only computes the branch that's actually shown.
 st.header("Population Over Time")
 pop_choice = st.radio("Show", ["Prey", "Predators", "Both"], horizontal=True, key="pop_choice")
 
 if pop_choice == "Prey":
-    st.plotly_chart(make_chart("prey", "Prey population", "Prey Population Over Time"), use_container_width=True)
+    show_chart(make_chart("prey", "Prey population", "Prey Population Over Time"), key="chart_pop_prey")
 
 elif pop_choice == "Predators":
-    st.plotly_chart(make_chart("predators", "Predator population", "Predator Population Over Time"), use_container_width=True)
+    show_chart(make_chart("predators", "Predator population", "Predator Population Over Time"), key="chart_pop_pred")
 
 else:
     fig = go.Figure()
@@ -381,8 +456,9 @@ else:
             fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["predators"], smooth),
                                      name=f"{r['group']} s{r['seed']} r{r['run']} — pred",
                                      line=dict(color=color, dash="dash")))
-    fig.update_layout(xaxis_title="Tick", yaxis_title="Population", hovermode="x unified", height=420)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(xaxis_title="Tick", yaxis_title="Population", hovermode="x unified")
+    style_figure(fig, title="Prey and Predator Population Over Time")
+    show_chart(fig, key="chart_pop_both")
 
 # ── Lifespan chart ────────────────────────────────────────────────────────────
 st.header("Average Lifespan Over Time")
@@ -416,14 +492,19 @@ def make_lifespan_fig(field, ylabel):
             fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r[field], smooth),
                                      name=f"{r['group']} s{r['seed']} r{r['run']}",
                                      line=dict(color=color)))
-    fig.update_layout(xaxis_title="Tick", yaxis_title=ylabel, hovermode="x unified", height=420)
+    fig.update_layout(xaxis_title="Tick", yaxis_title=ylabel, hovermode="x unified")
+    style_figure(fig)
     return fig
 
 if lifespan_choice == "Prey":
-    st.plotly_chart(make_lifespan_fig("prey_lifespan", "Avg prey lifespan (ticks)"), use_container_width=True)
+    fig = make_lifespan_fig("prey_lifespan", "Avg prey lifespan (ticks)")
+    fig.update_layout(title=dict(text="Average Prey Lifespan Over Time"))
+    show_chart(fig, key="chart_life_prey")
 
 elif lifespan_choice == "Predators":
-    st.plotly_chart(make_lifespan_fig("predator_lifespan", "Avg predator lifespan (ticks)"), use_container_width=True)
+    fig = make_lifespan_fig("predator_lifespan", "Avg predator lifespan (ticks)")
+    fig.update_layout(title=dict(text="Average Predator Lifespan Over Time"))
+    show_chart(fig, key="chart_life_pred")
 
 else:
     fig = go.Figure()
@@ -463,15 +544,16 @@ else:
             fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["predator_lifespan"], smooth),
                                      name=f"{r['group']} s{r['seed']} r{r['run']} — pred",
                                      line=dict(color=color, dash="dash")))
-    fig.update_layout(xaxis_title="Tick", yaxis_title="Avg lifespan (ticks)", hovermode="x unified", height=420)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(xaxis_title="Tick", yaxis_title="Avg lifespan (ticks)", hovermode="x unified")
+    style_figure(fig, title="Average Prey and Predator Lifespan Over Time")
+    show_chart(fig, key="chart_life_both")
 
 # ── Alarm probability chart ───────────────────────────────────────────────────
-st.header("Average Alarm Strength  Over Time")
-fig = make_chart("alarm_prob", "Average strength", "Alarm Strength Over Time", show_std=True)
+st.header("Average Alarm Strength Over Time")
+fig = make_chart("alarm_prob", "Average strength", "Alarm Strength Over Time",
+                  show_std=True, y_range=[0, 1])
 fig.add_hline(y=0.5, line_dash="dot", line_color="gray", annotation_text="Starting p=0.5")
-fig.update_layout(yaxis=dict(range=[0, 1]))
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, key="chart_alarm_over_time")
 
 # ── Box plot of final alarm strength ─────────────────────────────────────────
 st.header("Final Alarm Strength Distribution by Group")
@@ -495,9 +577,9 @@ if groups_box:
             jitter=0.3,
             pointpos=-1.8
         ))
-    fig.update_layout(yaxis_title="Final Alarm p", yaxis=dict(range=[0, 1]),
-                      hovermode="closest", height=400)
-    st.plotly_chart(fig, use_container_width=True, key="chart_box_alarm_p")
+    fig.update_layout(yaxis_title="Final Alarm p", hovermode="closest")
+    style_figure(fig, y_range=[0, 1], title="Final Alarm Strength Distribution by Group")
+    show_chart(fig, key="chart_box_alarm_p")
 
 # ── Scatter: avg alarm strength vs prey lifespan ──────────────────────────────
 st.header("Average Alarm Strength vs Prey Lifespan")
@@ -525,7 +607,8 @@ if scatter_x:
             x=gx, y=gy,
             mode="markers",
             name=group,
-            marker=dict(color=get_group_color(group), size=10),
+            marker=dict(color=get_group_color(group), size=10,
+                        line=dict(color="#333333", width=1)),
             hovertemplate="<b>%{text}</b><br>Avg p: %{x}<br>Avg lifespan: %{y}<extra></extra>",
             text=gnames
         ))
@@ -537,23 +620,22 @@ if scatter_x:
         fig.add_trace(go.Scatter(
             x=x_line, y=[p_fit(xi) for xi in x_line],
             mode="lines", name="Trend",
-            line=dict(color="gray", dash="dash", width=1)
+            line=dict(color="#555555", dash="dash", width=1.5)
         ))
 
     fig.update_layout(xaxis_title="Average Alarm Strength",
                       yaxis_title="Average Prey Lifespan (ticks)",
-                      hovermode="closest", height=400)
-    st.plotly_chart(fig, use_container_width=True, key="chart_scatter_p_lifespan")
+                      hovermode="closest")
+    style_figure(fig, title="Average Alarm Strength vs Prey Lifespan")
+    show_chart(fig, key="chart_scatter_p_lifespan")
 
 # ── Comparison bar charts ─────────────────────────────────────────────────────
-# Was st.tabs across every group + "All Groups" — all computed every rerun.
-# A selectbox only builds the one bar chart actually being viewed.
 st.header("Run Comparison (Averages Across All Runs)")
 comparison_group_choice = st.selectbox(
     "Group", selected_groups + ["📊 All Groups"], key="comparison_group_choice"
 )
 
-def render_comparison_bar(df, key):
+def render_comparison_bar(df, key, title):
     avg_prey = avg(df["Avg Prey"].tolist())
     avg_predator = avg(df["Avg Predator"].tolist())
     avg_prey_lifespan = avg(df["Avg Prey Lifespan"].tolist())
@@ -563,15 +645,17 @@ def render_comparison_bar(df, key):
         y=[avg_prey, avg_predator, avg_prey_lifespan, avg_peak_prey],
         text=[f"{avg_prey:.1f}", f"{avg_predator:.1f}", f"{avg_prey_lifespan:.1f}", f"{avg_peak_prey:.1f}"],
         textposition="outside",
-        marker_color=["#1f77b4", "#d62728", "#ff7f0e", "#2ca02c"]
+        marker_color=[PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]]
     ))
-    fig.update_layout(yaxis_title="Value", hovermode="x", height=400)
-    st.plotly_chart(fig, use_container_width=True, key=key)
+    fig.update_layout(yaxis_title="Value", hovermode="x")
+    style_figure(fig, title=title)
+    show_chart(fig, key=key)
 
 if comparison_group_choice == "📊 All Groups":
-    render_comparison_bar(summary_df, "chart_comparison_all")
+    render_comparison_bar(summary_df, "chart_comparison_all", "Run Comparison — All Groups")
 else:
-    render_comparison_bar(summary_df[summary_df["Group"] == comparison_group_choice], "chart_comparison_group")
+    render_comparison_bar(summary_df[summary_df["Group"] == comparison_group_choice],
+                          "chart_comparison_group", f"Run Comparison — {comparison_group_choice}")
 
 # ── Alarm strength bar chart ──────────────────────────────────────────────────
 st.header("Alarm Signal Strength per Run")
@@ -579,26 +663,27 @@ alarm_group_choice = st.selectbox(
     "Group", selected_groups + ["📊 All Runs"], key="alarm_group_choice"
 )
 
-def render_alarm_bar(df, key):
+def render_alarm_bar(df, key, title):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         name="Avg Alarm strength",
         x=df["Run"],
         y=df["Avg Alarm strength"],
-        marker_color="#1f77b4"
+        marker_color=PALETTE[0]
     ))
     fig.add_trace(go.Bar(
         name="Final Alarm strength",
         x=df["Run"],
         y=df["Final Alarm strength"],
-        marker_color="#ff7f0e"
+        marker_color=PALETTE[1]
     ))
     fig.update_layout(barmode="group", xaxis_title="Run",
-                      yaxis_title="Alarm Signal Strength",
-                      yaxis=dict(range=[0, 1]), hovermode="x", height=400)
-    st.plotly_chart(fig, use_container_width=True, key=key)
+                      yaxis_title="Alarm Signal Strength", hovermode="x")
+    style_figure(fig, y_range=[0, 1], title=title)
+    show_chart(fig, key=key)
 
 if alarm_group_choice == "📊 All Runs":
-    render_alarm_bar(summary_df, "chart_alarm_strength_all")
+    render_alarm_bar(summary_df, "chart_alarm_strength_all", "Alarm Signal Strength — All Runs")
 else:
-    render_alarm_bar(summary_df[summary_df["Group"] == alarm_group_choice], "chart_alarm_strength_group")
+    render_alarm_bar(summary_df[summary_df["Group"] == alarm_group_choice],
+                     "chart_alarm_strength_group", f"Alarm Signal Strength — {alarm_group_choice}")

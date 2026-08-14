@@ -91,6 +91,9 @@ const PREDATOR_LIFESPAN_MULTIPLIER = opts['predator-lifespan-multiplier']
 const PREDATOR_REPRODUCTION_MULTIPLIER = opts['predator-reproduction-multiplier']
     ? parseFloat(opts['predator-reproduction-multiplier'])
     : null;
+const ALARM_EFFECTIVENESS_OFFSET = opts['alarm-effectiveness-offset']
+    ? parseFloat(opts['alarm-effectiveness-offset'])
+    : null;
 
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
@@ -174,6 +177,13 @@ if (PREDATOR_REPRODUCTION_MULTIPLIER !== null) {
     Hyperparams.predatorReproductionMultiplier = PREDATOR_REPRODUCTION_MULTIPLIER;
     console.log(
         `[headless] Predator reproduction multiplier set to ${PREDATOR_REPRODUCTION_MULTIPLIER}`
+    );
+}
+
+if (ALARM_EFFECTIVENESS_OFFSET !== null) {
+    Hyperparams.alarmEffectivenessOffset = ALARM_EFFECTIVENESS_OFFSET;
+    console.log(
+        `[headless] Alarm effectiveness offset set to ${ALARM_EFFECTIVENESS_OFFSET}`
     );
 }
 

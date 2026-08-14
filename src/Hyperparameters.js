@@ -37,6 +37,7 @@ const Hyperparams = {
         this.preyAlarmSpeedMultiplier = 1;        
         this.evolveIndependentEyeDecisions = true;
         this.relatednessLevel = 0.125;
+        this.alarmEffectivenessOffset = 0;
 
         this.foodDropProb = 5;
 
