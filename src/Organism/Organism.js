@@ -27,11 +27,6 @@ class Organism {
         this.lineageId = this.generateLineageId();
         this.id = this.generateId(); // unique ID for this specific organism
 
-        const effectivenessOffset = Hyperparams.alarmEffectivenessOffset;
-
-        const callMultiplier = 50 + 20 * effectivenessOffset;
-        const fleeMultiplier = 70 + 20 * effectivenessOffset;
-        const radiusMultiplier = 60 + 20 * effectivenessOffset;
 
         if (parent != null) {
             this.inherit(parent);
@@ -188,6 +183,9 @@ class Organism {
         let env = this.env;
         let radiusSq = radius * radius;
         let recipients = [];
+
+        const effectivenessOffset = Hyperparams.alarmEffectivenessOffset;
+        const fleeMultiplier = 70 + 20 * effectivenessOffset;
 
         for (let org of env.organisms) {
             if (org === this || org.role !== "prey" || !org.living) continue;
@@ -536,6 +534,10 @@ class Organism {
     }
 
     update() {
+        const effectivenessOffset = Hyperparams.alarmEffectivenessOffset;
+
+        const callMultiplier = 50 + 20 * effectivenessOffset;
+        const radiusMultiplier = 60 + 20 * effectivenessOffset;
         if (this.alarmCooldown > 0) this.alarmCooldown--;
         if (this.fleeTimer > 0) this.fleeTimer--;
         // if (this.role === "prey" && this.fleeTimer === 1 && this.living) {
@@ -617,7 +619,7 @@ class Organism {
                 //Calls broadcast if alarm is active
                 if (this.isCallingAlarm) {
                     
-                    const broadcastRadius = Math.floor( 20 + radiusMultiplier  * this.alarmStrength );
+                    const broadcastRadius = Math.floor( 30 + radiusMultiplier  * this.alarmStrength );
                     this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
                     
                 }
