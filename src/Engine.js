@@ -2,6 +2,8 @@ const WorldEnvironment = require('./Environments/WorldEnvironment');
 const ControlPanel = require('./Controllers/ControlPanel');
 const OrganismEditor = require('./Environments/OrganismEditor');
 const {ColorScheme} = require('./Rendering/ColorScheme');
+const Validation = require('./Validation');
+Validation.run();
 
 const MIN_TIMER_MS = 1;
 let SAFE_STEPS_PER_TICK = 5;// soft upper limit, can be bypassed when we have extra time

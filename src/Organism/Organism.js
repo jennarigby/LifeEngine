@@ -915,31 +915,95 @@ class Organism {
         return null;
     }
 
-    calcRelatedness(other) {
-        if (this === other) return 1;
+//     calcRelatedness(other) {
+//     if (this === other) return 1;
 
-        // direct parent-child = 0.5
-        if (this.parentId === other.id || other.parentId === this.id) return 0.5;
+//     // Direct parent-child
+//     if (this.parentId === other.id || other.parentId === this.id) {
+//         return 0.5;
+//     }
 
-        // siblings share the same parent = 0.5
-        if (this.parentId && this.parentId === other.parentId) return 0.5;
+//     // Siblings
+//     if (this.parentId && this.parentId === other.parentId) {
+//         return 0.5;
+//     }
 
-        // check shared ancestors for cousins etc.
-        let myAncestors = this.ancestors || [];
-        let otherAncestors = other.ancestors || [];
+//     const myAncestors = this.ancestors || [];
+//     const otherAncestors = other.ancestors || [];
 
-        for (let i = 0; i < myAncestors.length; i++) {
-            for (let j = 0; j < otherAncestors.length; j++) {
-                if (myAncestors[i] === otherAncestors[j]) {
-                    // shared ancestor found — relatedness halves per generation back
-                    let generationsBack = Math.max(i, j) + 1;
-                    return Math.pow(0.5, generationsBack);
-                }
+//     // Ancestor-descendant
+//     if (myAncestors.includes(other.id)) {
+//         const generationsBack =
+//             myAncestors.length - myAncestors.indexOf(other.id);
+
+//         return Math.pow(0.5, generationsBack);
+//     }
+
+//     if (otherAncestors.includes(this.id)) {
+//         const generationsBack =
+//             otherAncestors.length - otherAncestors.indexOf(this.id);
+
+//         return Math.pow(0.5, generationsBack);
+//     }
+
+//     // Shared ancestors
+//     for (let i = 0; i < myAncestors.length; i++) {
+//         for (let j = 0; j < otherAncestors.length; j++) {
+//             if (myAncestors[i] === otherAncestors[j]) {
+//                 const generationsBack = Math.max(i, j) + 1;
+//                 return Math.pow(0.5, generationsBack);
+//             }
+//         }
+//     }
+
+//     return 0;
+// }
+
+calcRelatedness(other) {
+    if (this === other) return 1;
+
+    // Direct parent-child = 0.5
+    if (this.parentId === other.id || other.parentId === this.id) {
+        return 0.5;
+    }
+
+    // Siblings share the same parent = 0.5
+    if (this.parentId && this.parentId === other.parentId) {
+        return 0.5;
+    }
+
+    const myAncestors = this.ancestors || [];
+    const otherAncestors = other.ancestors || [];
+
+    // This organism is an ancestor of the other
+    if (otherAncestors.includes(this.id)) {
+        const generationsBack =
+            otherAncestors.length - otherAncestors.indexOf(this.id);
+
+        return Math.pow(0.5, generationsBack);
+    }
+
+    // The other organism is an ancestor of this one
+    if (myAncestors.includes(other.id)) {
+        const generationsBack =
+            myAncestors.length - myAncestors.indexOf(other.id);
+
+        return Math.pow(0.5, generationsBack);
+    }
+
+    // Check for shared ancestors
+    for (let i = 0; i < myAncestors.length; i++) {
+        for (let j = 0; j < otherAncestors.length; j++) {
+            if (myAncestors[i] === otherAncestors[j]) {
+                const generationsBack = Math.max(i, j) + 1;
+
+                return Math.pow(0.5, generationsBack);
             }
         }
-
-        return 0; // no shared ancestry within tracked depth
     }
+
+    return 0;
+}
 
     detectKin(radius = 30, threshold = Hyperparams.relatednessLevel) {
         let radiusSq = radius * radius;
