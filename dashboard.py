@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 import re
 from pathlib import Path
+from scipy import stats
 
 st.set_page_config(
     page_title="Altruism Simulation Dashboard",
@@ -73,6 +74,25 @@ group_names = all_groups
 
 st.success(f"Loaded {len(runs)} run(s) across {len(all_groups)} group(s) and {len(all_seeds)} seed(s).")
 
+# ── Group label formatting ────────────────────────────────────────────────────
+def format_group_label(group):
+    """Display group names that start with 'r' followed by digits (e.g. 'r0',
+    'r025', 'r05', 'r1') as a relatedness-threshold label like 'r >= 0' or
+    'r >= 0.25'. Any group name that doesn't match this pattern (e.g.
+    'control') is returned unchanged."""
+    m = re.match(r'^r(\d+)$', group)
+    if not m:
+        return group
+    digits = m.group(1)
+    if digits == "0":
+        val = "0"
+    elif len(digits) == 1:
+        val = digits
+    else:
+        stripped = digits.lstrip("0")
+        val = "0." + digits if not stripped else "0." + stripped if digits.startswith("0") else digits
+    return f"r >= {val}"
+
 # ── Sidebar controls ──────────────────────────────────────────────────────────
 st.sidebar.header("Display Options")
 
@@ -84,7 +104,8 @@ view_mode = st.sidebar.radio(
 selected_groups = st.sidebar.multiselect(
     "Groups to show",
     options=all_groups,
-    default=all_groups
+    default=all_groups,
+    format_func=format_group_label
 )
 
 selected_seeds = st.sidebar.multiselect(
@@ -94,6 +115,25 @@ selected_seeds = st.sidebar.multiselect(
 )
 
 smooth = st.sidebar.slider("Smoothing window", 1, 100, 1)
+
+_control_candidates = [g for g in all_groups if g.lower() == "control"]
+_default_ref_index = all_groups.index(_control_candidates[0]) if _control_candidates else 0
+reference_group = st.sidebar.selectbox(
+    "Reference group for pairwise comparisons",
+    options=all_groups,
+    index=_default_ref_index,
+    format_func=format_group_label,
+    help="Every other selected group is compared back to this one in the "
+         "Pairwise Comparisons table below (e.g. each relatedness threshold vs. control)."
+)
+
+exclude_extinct = st.sidebar.checkbox(
+    "Exclude predator-extinction runs from summary stats",
+    value=False,
+    help="Runs where the predator population hit zero at some point represent a "
+         "different selective regime (no predation pressure). Toggle this to see "
+         "summary stats computed only over runs where predators persisted throughout."
+)
 
 def smooth_series(series, window):
     if window <= 1 or not series:
@@ -159,7 +199,7 @@ def get_experiment_group(run_name):
             return g
     return run_name.split("_seed")[0] if "_seed" in run_name else run_name
 
-def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None):
+def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=0.15):
     """Apply one consistent, thesis-ready look to every chart: professional
     palette already applied per-trace, axes boxed and anchored at the
     origin/corner, matching size, and a clean white background suitable for
@@ -168,7 +208,12 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None):
     `title`, if given, sets the chart's title text. Charts that already set
     their own title text (via an earlier update_layout call) don't need to
     pass this — it merges with, rather than blanks out, whatever text is
-    already there."""
+    already there.
+
+    `legend_pad`, when y_range isn't explicitly given, adds headroom above
+    the highest data point so the top-right legend (see the legend block
+    below) has empty space to sit in instead of overlapping the traces.
+    Set to 0/None to disable and fall back to a tight tozero range."""
     title_dict = dict(font=dict(size=15, color="#000000"))
     if title is not None:
         title_dict["text"] = title
@@ -209,6 +254,21 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None):
     fig.update_xaxes(rangemode="tozero", **axis_kwargs)
     if y_range is not None:
         fig.update_yaxes(range=y_range, **axis_kwargs)
+    elif legend_pad:
+        data_max = 0.0
+        data_min = 0.0
+        for trace in fig.data:
+            ys = getattr(trace, "y", None)
+            if ys is None:
+                continue
+            nums = [v for v in ys if isinstance(v, (int, float))]
+            if nums:
+                data_max = max(data_max, max(nums))
+                data_min = min(data_min, min(nums))
+        if data_max > 0:
+            fig.update_yaxes(range=[data_min, data_max * (1 + legend_pad)], **axis_kwargs)
+        else:
+            fig.update_yaxes(rangemode="tozero", **axis_kwargs)
     else:
         fig.update_yaxes(rangemode="tozero", **axis_kwargs)
     return fig
@@ -282,71 +342,7 @@ def average_runs_cached(run_list, field):
         _avg_cache[key] = average_runs(run_list, field)
     return _avg_cache[key]
 
-# ── Filter runs ───────────────────────────────────────────────────────────────
-filtered_runs = [r for r in runs if r["group"] in selected_groups and r["seed"] in selected_seeds]
-
-# ── Summary stats ─────────────────────────────────────────────────────────────
-st.header("Summary Statistics")
-
-summary_rows = []
-for r in filtered_runs:
-    summary_rows.append({
-        "Run": r["name"],
-        "Group": r["group"],
-        "Seed": r["seed"],
-        "Avg Prey": avg(r["prey"]),
-        "Avg Predator": avg(r["predators"]),
-        "Avg Prey Lifespan": avg(r["prey_lifespan"]),
-        "Peak Prey": max(r["prey"]) if r["prey"] else 0,
-        "Avg Alarm strength": avg(r["alarm_prob"]) if r["alarm_prob"] else 0,
-        "Final Alarm strength": round(r["alarm_prob"][-1], 3) if r["alarm_prob"] else 0,
-    })
-summary_df = pd.DataFrame(summary_rows)
-
-if view_mode == "Group comparison (averaged)":
-    rows = []
-    for group in selected_groups:
-        group_runs = [r for r in filtered_runs if r["group"] == group]
-        if not group_runs:
-            continue
-        rows.append({
-            "Group": group,
-            "Runs": len(group_runs),
-            "Avg Prey": avg([avg(r["prey"]) for r in group_runs if r["prey"]]),
-            "Avg Predators": avg([avg(r["predators"]) for r in group_runs if r["predators"]]),
-            "Peak Prey (avg)": avg([max(r["prey"]) for r in group_runs if r["prey"]]),
-            "Peak Predators (avg)": avg([max(r["predators"]) for r in group_runs if r["predators"]]),
-            "Avg Prey Lifespan": avg([avg(r["prey_lifespan"]) for r in group_runs if r["prey_lifespan"]]),
-            "Avg Alarm strength": avg([avg(r["alarm_prob"]) for r in group_runs if r["alarm_prob"]]),
-            "Final Alarm strength (avg)": avg([r["alarm_prob"][-1] for r in group_runs if r["alarm_prob"]]),
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-elif view_mode == "Per-seed comparison":
-    rows = []
-    for group in selected_groups:
-        for seed in selected_seeds:
-            seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
-            if not seed_runs:
-                continue
-            rows.append({
-                "Group": group,
-                "Seed": seed,
-                "Runs": len(seed_runs),
-                "Avg Prey": avg([avg(r["prey"]) for r in seed_runs if r["prey"]]),
-                "Avg Predators": avg([avg(r["predators"]) for r in seed_runs if r["predators"]]),
-                "Avg Alarm p": avg([avg(r["alarm_prob"]) for r in seed_runs if r["alarm_prob"]]),
-                "Final Alarm p (avg)": avg([r["alarm_prob"][-1] for r in seed_runs if r["alarm_prob"]]),
-            })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-else:
-    st.dataframe(summary_df, use_container_width=True, hide_index=True)
-
-# ── Predator extinction events ────────────────────────────────────────────────
-st.header("Predator Extinction Events")
-st.caption("A run counts as an extinction if the predator population hits zero at any point during the run, not just at the end.")
-
+# ── Per-run extinction flag ───────────────────────────────────────────────────
 def went_extinct(predator_counts):
     """True if predators established (count > 0 at some point) and later
     dropped back to zero. Ignores the leading zeros at the start of a run
@@ -363,21 +359,233 @@ def went_extinct(predator_counts):
             return True
     return False
 
+for r in runs:
+    r["extinct"] = went_extinct(r["predators"])
+
+# ── Statistics helpers ────────────────────────────────────────────────────────
+def summary_stats(values):
+    """Mean, sample SD, SEM, and a 95% CI (t-distribution) for a list of
+    per-run values. Returns a dict of rounded figures, or all-zero/NaN
+    placeholders if there isn't enough data to compute spread."""
+    values = [v for v in values if v is not None]
+    n = len(values)
+    if n == 0:
+        return {"n": 0, "mean": 0.0, "sd": 0.0, "sem": 0.0, "ci_lo": 0.0, "ci_hi": 0.0}
+    mean = float(np.mean(values))
+    if n < 2:
+        return {"n": n, "mean": round(mean, 2), "sd": 0.0, "sem": 0.0,
+                "ci_lo": round(mean, 2), "ci_hi": round(mean, 2)}
+    sd = float(np.std(values, ddof=1))
+    sem = sd / np.sqrt(n)
+    # t critical value (two-tailed, 95%) rather than the z=1.96 normal
+    # approximation, since n=50 per condition is on the small side for
+    # that approximation to be exact.
+    t_crit = stats.t.ppf(0.975, df=n - 1)
+    margin = t_crit * sem
+    return {
+        "n": n,
+        "mean": round(mean, 2),
+        "sd": round(sd, 2),
+        "sem": round(sem, 2),
+        "ci_lo": round(mean - margin, 2),
+        "ci_hi": round(mean + margin, 2),
+    }
+
+def compare_groups(values_a, values_b):
+    """Two-sided Mann-Whitney U test between two independent samples.
+    Mann-Whitney (rather than an independent t-test) is used because
+    predator-extinction runs introduce skew/outliers into several metrics
+    (flagged qualitatively in the paper's Results section), so normality
+    of per-run values isn't a safe assumption. Falls back gracefully when
+    a group has too few runs or zero variance to compute the effect size.
+    """
+    a = np.array([v for v in values_a if v is not None], dtype=float)
+    b = np.array([v for v in values_b if v is not None], dtype=float)
+    if len(a) < 2 or len(b) < 2:
+        return None
+    try:
+        u_stat, p_val = stats.mannwhitneyu(a, b, alternative="two-sided")
+    except ValueError:
+        # All values identical in both samples — Mann-Whitney is undefined.
+        return None
+    # Rank-biserial correlation as a distribution-free effect size
+    # (0 = no difference, ±1 = complete separation of the two samples).
+    n1, n2 = len(a), len(b)
+    effect_size = 1 - (2 * u_stat) / (n1 * n2)
+    return {"u": float(u_stat), "p": float(p_val), "effect": round(effect_size, 3),
+            "n1": n1, "n2": n2}
+
+def format_p(p):
+    if p is None:
+        return "—"
+    if p < 0.001:
+        return "<0.001"
+    return f"{p:.3f}"
+
+# ── Filter runs ───────────────────────────────────────────────────────────────
+filtered_runs = [r for r in runs if r["group"] in selected_groups and r["seed"] in selected_seeds]
+if exclude_extinct:
+    filtered_runs = [r for r in filtered_runs if not r["extinct"]]
+
+# ── Summary stats ─────────────────────────────────────────────────────────────
+st.header("Summary Statistics")
+if exclude_extinct:
+    st.caption("Predator-extinction runs are excluded from every table and test below "
+               "(toggle in the sidebar).")
+
+summary_rows = []
+for r in filtered_runs:
+    summary_rows.append({
+        "Run": r["name"],
+        "Group": format_group_label(r["group"]),
+        "Seed": r["seed"],
+        "Extinct": "Yes" if r["extinct"] else "No",
+        "Avg Prey": avg(r["prey"]),
+        "Avg Predator": avg(r["predators"]),
+        "Avg Prey Lifespan": avg(r["prey_lifespan"]),
+        "Peak Prey": max(r["prey"]) if r["prey"] else 0,
+        "Avg Alarm strength": avg(r["alarm_prob"]) if r["alarm_prob"] else 0,
+        "Final Alarm strength": round(r["alarm_prob"][-1], 3) if r["alarm_prob"] else 0,
+    })
+summary_df = pd.DataFrame(summary_rows)
+
+# Fields shown with full spread/CI stats in the "Group comparison" table.
+# Each entry maps a display label to (per-run field name, per-run
+# aggregator) — the aggregator turns one run's time series (or, for "final
+# alarm strength", its last value) into the single number that feeds the
+# group's mean/SD/CI, matching how each column is already computed elsewhere
+# in the dashboard.
+STAT_FIELDS = {
+    "Avg Prey": ("prey", lambda r: avg(r["prey"]) if r["prey"] else None),
+    "Avg Prey Lifespan": ("prey_lifespan", lambda r: avg(r["prey_lifespan"]) if r["prey_lifespan"] else None),
+    "Avg Alarm strength": ("alarm_prob", lambda r: avg(r["alarm_prob"]) if r["alarm_prob"] else None),
+    "Final Alarm strength": ("alarm_prob", lambda r: r["alarm_prob"][-1] if r["alarm_prob"] else None),
+    "Avg Predators": ("predators", lambda r: avg(r["predators"]) if r["predators"] else None),
+    "Avg Predator Lifespan": ("predator_lifespan", lambda r: avg(r["predator_lifespan"]) if r["predator_lifespan"] else None),
+}
+
+if view_mode == "Group comparison (averaged)":
+    rows = []
+    per_group_values = {}  # group -> {stat label: [per-run values]}, reused below for significance tests
+    for group in selected_groups:
+        group_runs = [r for r in filtered_runs if r["group"] == group]
+        if not group_runs:
+            continue
+        per_group_values[group] = {
+            label: [agg(r) for r in group_runs] for label, (_, agg) in STAT_FIELDS.items()
+        }
+        row = {
+            "Group": format_group_label(group),
+            "Runs": len(group_runs),
+            "Extinctions": sum(1 for r in group_runs if r["extinct"]),
+            "Avg Prey": avg([avg(r["prey"]) for r in group_runs if r["prey"]]),
+            "Avg Predators": avg([avg(r["predators"]) for r in group_runs if r["predators"]]),
+            "Peak Prey (avg)": avg([max(r["prey"]) for r in group_runs if r["prey"]]),
+            "Peak Predators (avg)": avg([max(r["predators"]) for r in group_runs if r["predators"]]),
+            "Avg Prey Lifespan": avg([avg(r["prey_lifespan"]) for r in group_runs if r["prey_lifespan"]]),
+            "Avg Alarm strength": avg([avg(r["alarm_prob"]) for r in group_runs if r["alarm_prob"]]),
+            "Final Alarm strength (avg)": avg([r["alarm_prob"][-1] for r in group_runs if r["alarm_prob"]]),
+        }
+        # Attach SD and 95% CI for each of the stat fields, e.g.
+        # "Avg Prey Lifespan SD" / "Avg Prey Lifespan 95% CI".
+        for label in STAT_FIELDS:
+            stats_dict = summary_stats(per_group_values[group][label])
+            row[f"{label} SD"] = stats_dict["sd"]
+            row[f"{label} 95% CI"] = f"[{stats_dict['ci_lo']}, {stats_dict['ci_hi']}]"
+        rows.append(row)
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    # ── Pairwise significance tests ───────────────────────────────────────
+    st.subheader("Pairwise Comparisons (Mann-Whitney U)")
+    st.caption(
+        "Each row compares two groups' per-run values on one metric. Mann-Whitney U "
+        "is used instead of a t-test because predator-extinction runs introduce skew "
+        "into several metrics. Effect size is the rank-biserial correlation "
+        "(0 = no difference, ±1 = complete separation)."
+    )
+    if reference_group not in per_group_values:
+        st.info(f"Reference group '{format_group_label(reference_group)}' has no runs in the "
+                f"current selection — pick a different reference group in the sidebar, or add "
+                f"more seeds/groups to the filter.")
+    elif len(per_group_values) >= 2:
+        group_list = [g for g in per_group_values if g != reference_group]
+        # Compare every other selected group back to the explicit reference
+        # group chosen in the sidebar (defaults to "control" if present),
+        # rather than every possible pair, so the table stays a manageable
+        # size and always reports the comparison you actually want (e.g.
+        # each relatedness threshold vs. control).
+        reference = reference_group
+        test_rows = []
+        for label in STAT_FIELDS:
+            for group in group_list:
+                result = compare_groups(
+                    per_group_values[reference][label],
+                    per_group_values[group][label],
+                )
+                if result is None:
+                    continue
+                test_rows.append({
+                    "Metric": label,
+                    "Group A (reference)": format_group_label(reference),
+                    "Group B": format_group_label(group),
+                    "n (A, B)": f"{result['n1']}, {result['n2']}",
+                    "U": round(result["u"], 1),
+                    "p-value": format_p(result["p"]),
+                    "Significant (p<0.05)": "Yes" if result["p"] < 0.05 else "No",
+                    "Effect size (r)": result["effect"],
+                })
+        if test_rows:
+            st.dataframe(pd.DataFrame(test_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Not enough runs per group to compute a test (need at least 2 per group).")
+    else:
+        st.info("Select at least two groups to compare.")
+
+elif view_mode == "Per-seed comparison":
+    rows = []
+    for group in selected_groups:
+        for seed in selected_seeds:
+            seed_runs = [r for r in filtered_runs if r["group"] == group and r["seed"] == seed]
+            if not seed_runs:
+                continue
+            rows.append({
+                "Group": format_group_label(group),
+                "Seed": seed,
+                "Runs": len(seed_runs),
+                "Extinctions": sum(1 for r in seed_runs if r["extinct"]),
+                "Avg Prey": avg([avg(r["prey"]) for r in seed_runs if r["prey"]]),
+                "Avg Predators": avg([avg(r["predators"]) for r in seed_runs if r["predators"]]),
+                "Avg Alarm p": avg([avg(r["alarm_prob"]) for r in seed_runs if r["alarm_prob"]]),
+                "Final Alarm p (avg)": avg([r["alarm_prob"][-1] for r in seed_runs if r["alarm_prob"]]),
+            })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+else:
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+# ── Predator extinction events ────────────────────────────────────────────────
+st.header("Predator Extinction Events")
+st.caption("A run counts as an extinction if the predator population hits zero at any point during the run, not just at the end.")
+
 extinction_rows = []
 for group in selected_groups:
-    group_runs = [r for r in filtered_runs if r["group"] == group]
+    # NOTE: this section always looks at every run in the group regardless
+    # of the "exclude extinction runs" toggle above, since it exists
+    # specifically to report the extinction rate itself.
+    group_runs = [r for r in runs if r["group"] == group and r["seed"] in selected_seeds]
     if not group_runs:
         continue
-    extinct_runs = [r for r in group_runs if went_extinct(r["predators"])]
+    extinct_runs = [r for r in group_runs if r["extinct"]]
     extinction_rows.append({
-        "Group": group,
+        "GroupKey": group,
+        "Group": format_group_label(group),
         "Runs": len(group_runs),
         "Extinctions": len(extinct_runs),
         "Extinction Rate": round(len(extinct_runs) / len(group_runs), 2) if group_runs else 0,
     })
 
 extinction_df = pd.DataFrame(extinction_rows)
-st.dataframe(extinction_df, use_container_width=True, hide_index=True)
+st.dataframe(extinction_df.drop(columns=["GroupKey"], errors="ignore"), use_container_width=True, hide_index=True)
 
 if not extinction_df.empty:
     fig = go.Figure(go.Bar(
@@ -385,8 +593,8 @@ if not extinction_df.empty:
         y=extinction_df["Extinctions"],
         text=extinction_df["Extinctions"],
         textposition="outside",
-        marker_color=[get_group_color(g) for g in extinction_df["Group"]],
-        marker_pattern_shape=[get_group_pattern(g) for g in extinction_df["Group"]],
+        marker_color=[get_group_color(g) for g in extinction_df["GroupKey"]],
+        marker_pattern_shape=[get_group_pattern(g) for g in extinction_df["GroupKey"]],
         marker_pattern=dict(fgcolor="#000000", size=6, solidity=0.35)
     ))
     fig.update_layout(xaxis_title="Group", yaxis_title="Runs with a predator extinction")
@@ -404,9 +612,9 @@ def make_chart(field, ylabel, title, show_std=False, y_range=None):
                 continue
             ticks, avg_vals, std_vals = average_runs_cached(group_runs, field)
             smoothed = smooth_series(avg_vals, smooth)
-            color = get_color(group, i)
+            color = get_color(group, all_groups.index(group))
             fig.add_trace(go.Scatter(
-                x=ticks, y=smoothed, name=group,
+                x=ticks, y=smoothed, name=format_group_label(group),
                 line=dict(color=color, width=2)
             ))
             if show_std and std_vals:
@@ -422,7 +630,7 @@ def make_chart(field, ylabel, title, show_std=False, y_range=None):
                     opacity=0.08,
                     line=dict(width=0),
                     showlegend=False,
-                    name=f"{group} ± std"
+                    name=f"{format_group_label(group)} ± std"
                 ))
 
     elif view_mode == "Per-seed comparison":
@@ -433,10 +641,10 @@ def make_chart(field, ylabel, title, show_std=False, y_range=None):
                     continue
                 ticks, avg_vals, _ = average_runs_cached(seed_runs, field)
                 smoothed = smooth_series(avg_vals, smooth)
-                color = get_color(group, i)
+                color = get_color(group, all_groups.index(group))
                 fig.add_trace(go.Scatter(
                     x=ticks, y=smoothed,
-                    name=f"{group} seed{seed}",
+                    name=f"{format_group_label(group)} seed{seed}",
                     line=dict(color=color, width=2)
                 ))
 
@@ -445,7 +653,7 @@ def make_chart(field, ylabel, title, show_std=False, y_range=None):
             smoothed = smooth_series(r[field], smooth)
             fig.add_trace(go.Scatter(
                 x=r["ticks"], y=smoothed,
-                name=f"{r['group']} s{r['seed']} {format_run(r['run'])}",
+                name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])}",
                 line=dict(color=get_color(r["group"], all_groups.index(r["group"])), width=2)
             ))
 
@@ -477,12 +685,12 @@ else:
                 continue
             ticks, prey_avg, _ = average_runs_cached(group_runs, "prey")
             _, pred_avg, _ = average_runs_cached(group_runs, "predators")
-            color = get_color(group, i)
-            color_pred = get_color(group, i, pred=True)
+            color = get_color(group, all_groups.index(group))
+            color_pred = get_color(group, all_groups.index(group), pred=True)
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
-                                     name=f"{group} — prey", line=dict(color=color)))
+                                     name=f"{format_group_label(group)} — prey", line=dict(color=color)))
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(pred_avg, smooth),
-                                     name=f"{group} — predators", line=dict(color=color_pred)))
+                                     name=f"{format_group_label(group)} — predators", line=dict(color=color_pred)))
     elif view_mode == "Per-seed comparison":
         for i, group in enumerate(selected_groups):
             for j, seed in enumerate(selected_seeds):
@@ -491,20 +699,20 @@ else:
                     continue
                 ticks, prey_avg, _ = average_runs_cached(seed_runs, "prey")
                 _, pred_avg, _ = average_runs_cached(seed_runs, "predators")
-                color = get_color(group, i)
-                color_pred = get_color(group, i, pred=True)
+                color = get_color(group, all_groups.index(group))
+                color_pred = get_color(group, all_groups.index(group), pred=True)
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
-                                         name=f"{group} s{seed} — prey", line=dict(color=color)))
+                                         name=f"{format_group_label(group)} s{seed} — prey", line=dict(color=color)))
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(pred_avg, smooth),
-                                         name=f"{group} s{seed} — pred", line=dict(color=color_pred)))
+                                         name=f"{format_group_label(group)} s{seed} — pred", line=dict(color=color_pred)))
     else:
         for i, r in enumerate(filtered_runs):
             color = get_color(r["group"], all_groups.index(r["group"]))
             color_pred = get_color(r["group"], all_groups.index(r["group"]), pred=True)
             fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["prey"], smooth),
-                                     name=f"{r['group']} s{r['seed']} {format_run(r['run'])} — prey", line=dict(color=color)))
+                                     name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])} — prey", line=dict(color=color)))
             fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["predators"], smooth),
-                                     name=f"{r['group']} s{r['seed']} {format_run(r['run'])} — pred",
+                                     name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])} — pred",
                                      line=dict(color=color_pred)))
     fig.update_layout(xaxis_title="Tick", yaxis_title="Population", hovermode="x unified")
     style_figure(fig, title="Prey and Predator Population Over Time")
@@ -514,7 +722,10 @@ else:
 st.header("Average Lifespan Over Time")
 lifespan_choice = st.radio("Show", ["Prey", "Predators", "Both"], horizontal=True, key="lifespan_choice")
 
-def make_lifespan_fig(field, ylabel):
+MAX_PREY_LIFESPAN = 5000
+MAX_PREDATOR_LIFESPAN = 6000
+
+def make_lifespan_fig(field, ylabel, normalize_by=None):
     fig = go.Figure()
     if view_mode == "Group comparison (averaged)":
         for i, group in enumerate(selected_groups):
@@ -522,9 +733,11 @@ def make_lifespan_fig(field, ylabel):
             if not group_runs:
                 continue
             ticks, avg_vals, _ = average_runs_cached(group_runs, field)
-            color = get_color(group, i)
+            if normalize_by:
+                avg_vals = [v / normalize_by for v in avg_vals]
+            color = get_color(group, all_groups.index(group))
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(avg_vals, smooth),
-                                     name=group, line=dict(color=color)))
+                                     name=format_group_label(group), line=dict(color=color)))
     elif view_mode == "Per-seed comparison":
         for i, group in enumerate(selected_groups):
             for j, seed in enumerate(selected_seeds):
@@ -532,27 +745,34 @@ def make_lifespan_fig(field, ylabel):
                 if not seed_runs:
                     continue
                 ticks, avg_vals, _ = average_runs_cached(seed_runs, field)
-                color = get_color(group, i)
+                if normalize_by:
+                    avg_vals = [v / normalize_by for v in avg_vals]
+                color = get_color(group, all_groups.index(group))
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(avg_vals, smooth),
-                                         name=f"{group} seed{seed}",
+                                         name=f"{format_group_label(group)} seed{seed}",
                                          line=dict(color=color)))
     else:
         for i, r in enumerate(filtered_runs):
             color = get_color(r["group"], all_groups.index(r["group"]))
-            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r[field], smooth),
-                                     name=f"{r['group']} s{r['seed']} {format_run(r['run'])}",
+            vals = r[field]
+            if normalize_by:
+                vals = [v / normalize_by for v in vals]
+            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(vals, smooth),
+                                     name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])}",
                                      line=dict(color=color)))
-    fig.update_layout(xaxis_title="Tick", yaxis_title=ylabel, hovermode="x unified")
+    fig.update_layout(xaxis_title="Tick", yaxis_title=ylabel,
+                      yaxis_tickformat=".2f" if normalize_by else None,
+                      hovermode="x unified")
     style_figure(fig)
     return fig
 
 if lifespan_choice == "Prey":
-    fig = make_lifespan_fig("prey_lifespan", "Avg prey lifespan (ticks)")
+    fig = make_lifespan_fig("prey_lifespan", "Avg prey lifespan (fraction of max)", normalize_by=MAX_PREY_LIFESPAN)
     fig.update_layout(title=dict(text="Average Prey Lifespan Over Time"))
     show_chart(fig, key="chart_life_prey")
 
 elif lifespan_choice == "Predators":
-    fig = make_lifespan_fig("predator_lifespan", "Avg predator lifespan (ticks)")
+    fig = make_lifespan_fig("predator_lifespan", "Avg predator lifespan (fraction of max)", normalize_by=MAX_PREDATOR_LIFESPAN)
     fig.update_layout(title=dict(text="Average Predator Lifespan Over Time"))
     show_chart(fig, key="chart_life_pred")
 
@@ -564,13 +784,15 @@ else:
             if not group_runs:
                 continue
             ticks, prey_avg, _ = average_runs_cached(group_runs, "prey_lifespan")
+            prey_avg = [v / MAX_PREY_LIFESPAN for v in prey_avg]
             _, pred_avg, _ = average_runs_cached(group_runs, "predator_lifespan")
-            color_p = get_color(group, i)
-            color_pred = get_color(group, i, pred=True)
+            pred_avg = [v / MAX_PREDATOR_LIFESPAN for v in pred_avg]
+            color_p = get_color(group, all_groups.index(group))
+            color_pred = get_color(group, all_groups.index(group), pred=True)
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
-                                     name=f"{group} — prey", line=dict(color=color_p)))
+                                     name=f"{format_group_label(group)} — prey", line=dict(color=color_p)))
             fig.add_trace(go.Scatter(x=ticks, y=smooth_series(pred_avg, smooth),
-                                     name=f"{group} — predators", line=dict(color=color_pred)))
+                                     name=f"{format_group_label(group)} — predators", line=dict(color=color_pred)))
     elif view_mode == "Per-seed comparison":
         for i, group in enumerate(selected_groups):
             for j, seed in enumerate(selected_seeds):
@@ -578,24 +800,30 @@ else:
                 if not seed_runs:
                     continue
                 ticks, prey_avg, _ = average_runs_cached(seed_runs, "prey_lifespan")
+                prey_avg = [v / MAX_PREY_LIFESPAN for v in prey_avg]
                 _, pred_avg, _ = average_runs_cached(seed_runs, "predator_lifespan")
-                color = get_color(group, i)
-                color_pred = get_color(group, i, pred=True)
+                pred_avg = [v / MAX_PREDATOR_LIFESPAN for v in pred_avg]
+                color = get_color(group, all_groups.index(group))
+                color_pred = get_color(group, all_groups.index(group), pred=True)
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(prey_avg, smooth),
-                                         name=f"{group} s{seed} — prey", line=dict(color=color)))
+                                         name=f"{format_group_label(group)} s{seed} — prey", line=dict(color=color)))
                 fig.add_trace(go.Scatter(x=ticks, y=smooth_series(pred_avg, smooth),
-                                         name=f"{group} s{seed} — pred", line=dict(color=color_pred)))
+                                         name=f"{format_group_label(group)} s{seed} — pred", line=dict(color=color_pred)))
     else:
         for i, r in enumerate(filtered_runs):
             color = get_color(r["group"], all_groups.index(r["group"]))
             color_pred = get_color(r["group"], all_groups.index(r["group"]), pred=True)
-            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["prey_lifespan"], smooth),
-                                     name=f"{r['group']} s{r['seed']} {format_run(r['run'])} — prey",
+            prey_vals = [v / MAX_PREY_LIFESPAN for v in r["prey_lifespan"]]
+            pred_vals = [v / MAX_PREDATOR_LIFESPAN for v in r["predator_lifespan"]]
+            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(prey_vals, smooth),
+                                     name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])} — prey",
                                      line=dict(color=color)))
-            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(r["predator_lifespan"], smooth),
-                                     name=f"{r['group']} s{r['seed']} {format_run(r['run'])} — pred",
+            fig.add_trace(go.Scatter(x=r["ticks"], y=smooth_series(pred_vals, smooth),
+                                     name=f"{format_group_label(r['group'])} s{r['seed']} {format_run(r['run'])} — pred",
                                      line=dict(color=color_pred)))
-    fig.update_layout(xaxis_title="Tick", yaxis_title="Avg lifespan (ticks)", hovermode="x unified")
+    fig.update_layout(xaxis_title="Tick", yaxis_title="Avg lifespan (fraction of max)",
+                      yaxis_tickformat=".2f",
+                      hovermode="x unified")
     style_figure(fig, title="Average Prey and Predator Lifespan Over Time")
     show_chart(fig, key="chart_life_both")
 
@@ -623,25 +851,27 @@ if groups_box:
     for i, (group, values) in enumerate(groups_box.items()):
         fig.add_trace(go.Box(
             y=values,
-            name=group,
+            name=format_group_label(group),
             marker=dict(color=get_group_color(group), symbol=get_group_symbol(group), size=6),
             line=dict(color=get_group_color(group)),
             boxpoints="all",
             jitter=0.3,
             pointpos=-1.8
         ))
-    fig.update_layout(yaxis_title="Final Alarm Strength", hovermode="closest")
+    fig.update_layout(yaxis_title="Final Alarm Strength", hovermode="closest", showlegend=False)
     style_figure(fig, y_range=[0, 1], title="Final Alarm Strength Distribution by Group")
     show_chart(fig, key="chart_box_alarm_p")
 
 # ── Scatter: avg alarm strength vs prey lifespan ──────────────────────────────
 st.header("Average Alarm Strength vs Prey Lifespan")
 
+MAX_LIFESPAN = 5000
+
 scatter_x, scatter_y, scatter_names = [], [], []
 for r in filtered_runs:
     if r["alarm_prob"] and r["prey_lifespan"]:
         scatter_x.append(round(avg(r["alarm_prob"]), 3))
-        scatter_y.append(round(avg(r["prey_lifespan"]), 1))
+        scatter_y.append(round(avg(r["prey_lifespan"]) / MAX_LIFESPAN, 3))
         scatter_names.append(r["name"])
 
 if scatter_x:
@@ -653,16 +883,16 @@ if scatter_x:
                 continue
             if r["alarm_prob"] and r["prey_lifespan"]:
                 gx.append(round(avg(r["alarm_prob"]), 3))
-                gy.append(round(avg(r["prey_lifespan"]), 1))
+                gy.append(round(avg(r["prey_lifespan"]) / MAX_LIFESPAN, 3))
                 gnames.append(r["name"])
         if gx:
             fig.add_trace(go.Scatter(
             x=gx, y=gy,
             mode="markers",
-            name=group,
+            name=format_group_label(group),
             marker=dict(color=get_group_color(group), size=11, symbol=get_group_symbol(group),
                         line=dict(color="#000000", width=1)),
-            hovertemplate="<b>%{text}</b><br>Avg p: %{x}<br>Avg lifespan: %{y}<extra></extra>",
+            hovertemplate="<b>%{text}</b><br>Avg p: %{x}<br>Avg lifespan: %{y:.2f}<extra></extra>",
             text=gnames
         ))
 
@@ -677,7 +907,8 @@ if scatter_x:
         ))
 
     fig.update_layout(xaxis_title="Average Alarm Strength",
-                      yaxis_title="Average Prey Lifespan (ticks)",
+                      yaxis_title="Average Prey Lifespan (fraction of max)",
+                      yaxis_tickformat=".2f",
                       hovermode="closest")
     style_figure(fig, title="Average Alarm Strength vs Prey Lifespan")
     show_chart(fig, key="chart_scatter_p_lifespan")
@@ -713,7 +944,7 @@ if scatter_x:
                 x=gx,
                 y=gy,
                 mode="markers",
-                name=group,
+                name=format_group_label(group),
                 marker=dict(
                     color=get_group_color(group),
                     size=11,
@@ -766,62 +997,3 @@ if scatter_x:
         fig,
         key="chart_scatter_p_population"
     )
-
-# # ── Comparison bar charts ─────────────────────────────────────────────────────
-# st.header("Run Comparison (Averages Across All Runs)")
-# comparison_group_choice = st.selectbox(
-#     "Group", selected_groups + ["📊 All Groups"], key="comparison_group_choice"
-# )
-
-# def render_comparison_bar(df, key, title):
-#     avg_prey = avg(df["Avg Prey"].tolist())
-#     avg_predator = avg(df["Avg Predator"].tolist())
-#     avg_prey_lifespan = avg(df["Avg Prey Lifespan"].tolist())
-#     avg_peak_prey = avg(df["Peak Prey"].tolist())
-#     fig = go.Figure(go.Bar(
-#         x=["Avg Prey Population", "Avg Predator Population", "Avg Prey Lifespan (ticks)", "Peak Prey Population"],
-#         y=[avg_prey, avg_predator, avg_prey_lifespan, avg_peak_prey],
-#         text=[f"{avg_prey:.1f}", f"{avg_predator:.1f}", f"{avg_prey_lifespan:.1f}", f"{avg_peak_prey:.1f}"],
-#         textposition="outside",
-#         marker_color=[PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]]
-#     ))
-#     fig.update_layout(yaxis_title="Value", hovermode="x")
-#     style_figure(fig, title=title)
-#     show_chart(fig, key=key)
-
-# if comparison_group_choice == "📊 All Groups":
-#     render_comparison_bar(summary_df, "chart_comparison_all", "Run Comparison — All Groups")
-# else:
-#     render_comparison_bar(summary_df[summary_df["Group"] == comparison_group_choice],
-#                           "chart_comparison_group", f"Run Comparison — {comparison_group_choice}")
-
-# # ── Alarm strength bar chart ──────────────────────────────────────────────────
-# st.header("Alarm Signal Strength per Run")
-# alarm_group_choice = st.selectbox(
-#     "Group", selected_groups + ["📊 All Runs"], key="alarm_group_choice"
-# )
-
-# def render_alarm_bar(df, key, title):
-#     fig = go.Figure()
-#     fig.add_trace(go.Bar(
-#         name="Avg Alarm strength",
-#         x=df["Run"],
-#         y=df["Avg Alarm strength"],
-#         marker_color=PALETTE[0]
-#     ))
-#     fig.add_trace(go.Bar(
-#         name="Final Alarm strength",
-#         x=df["Run"],
-#         y=df["Final Alarm strength"],
-#         marker_color=PALETTE[1]
-#     ))
-#     fig.update_layout(barmode="group", xaxis_title="Run",
-#                       yaxis_title="Alarm Signal Strength", hovermode="x")
-#     style_figure(fig, y_range=[0, 1], title=title)
-#     show_chart(fig, key=key)
-
-# if alarm_group_choice == "📊 All Runs":
-#     render_alarm_bar(summary_df, "chart_alarm_strength_all", "Alarm Signal Strength — All Runs")
-# else:
-#     render_alarm_bar(summary_df[summary_df["Group"] == alarm_group_choice],
-#                      "chart_alarm_strength_group", f"Alarm Signal Strength — {alarm_group_choice}")

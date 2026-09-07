@@ -540,9 +540,7 @@ class Organism {
         const radiusMultiplier = 60 + 20 * effectivenessOffset;
         if (this.alarmCooldown > 0) this.alarmCooldown--;
         if (this.fleeTimer > 0) this.fleeTimer--;
-        // if (this.role === "prey" && this.fleeTimer === 1 && this.living) {
-        //     this.survivedAlarmCount = (this.survivedAlarmCount || 0) + 1;
-        // }
+        
 
         this.lifetime++;
 
@@ -914,50 +912,6 @@ class Organism {
         }
         return null;
     }
-
-//     calcRelatedness(other) {
-//     if (this === other) return 1;
-
-//     // Direct parent-child
-//     if (this.parentId === other.id || other.parentId === this.id) {
-//         return 0.5;
-//     }
-
-//     // Siblings
-//     if (this.parentId && this.parentId === other.parentId) {
-//         return 0.5;
-//     }
-
-//     const myAncestors = this.ancestors || [];
-//     const otherAncestors = other.ancestors || [];
-
-//     // Ancestor-descendant
-//     if (myAncestors.includes(other.id)) {
-//         const generationsBack =
-//             myAncestors.length - myAncestors.indexOf(other.id);
-
-//         return Math.pow(0.5, generationsBack);
-//     }
-
-//     if (otherAncestors.includes(this.id)) {
-//         const generationsBack =
-//             otherAncestors.length - otherAncestors.indexOf(this.id);
-
-//         return Math.pow(0.5, generationsBack);
-//     }
-
-//     // Shared ancestors
-//     for (let i = 0; i < myAncestors.length; i++) {
-//         for (let j = 0; j < otherAncestors.length; j++) {
-//             if (myAncestors[i] === otherAncestors[j]) {
-//                 const generationsBack = Math.max(i, j) + 1;
-//                 return Math.pow(0.5, generationsBack);
-//             }
-//         }
-//     }
-
-//     return 0;
-// }
 
 calcRelatedness(other) {
     if (this === other) return 1;
