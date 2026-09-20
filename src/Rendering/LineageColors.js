@@ -22,7 +22,7 @@ class LineageColors {
     }
 
     // returns a color string for the lineage id. For founder lineages like 'lineage_1'..'lineage_5'
-    // we use the same palette as the LineageChart for exact visual matching.
+    // using the same palette as the LineageChart for exact visual matching.
     getColor(lineageId) {
         if (!lineageId) return null;
         if (this.cache[lineageId]) return this.cache[lineageId];

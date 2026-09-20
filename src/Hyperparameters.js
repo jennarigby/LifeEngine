@@ -4,7 +4,7 @@ const Hyperparams = {
     setDefaults: function() {
         this.lifespanMultiplier = 1000;
         this.predatorLifespanMultiplier = 1.2;
-        this.predatorReproductionMultiplier = 20;
+        this.predatorFoodRequirementMultiplier = 20; //Multiplies the food needed by predators to reproduce. Higher values make it harder for predators to reproduce.
         this.predatorStartingFood = 0;
         this.predatorStarvationBase = 5000; // base ticks before starving without meals
         

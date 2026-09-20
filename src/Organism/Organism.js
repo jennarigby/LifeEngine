@@ -29,10 +29,12 @@ class Organism {
 
 
         if (parent != null) {
+            // Child organism: inherit anatomy, brain, and lineage info from parent.
             this.inherit(parent);
             this.parentId = parent.id;
             this.generation = parent.generation + 1;
         } else {
+            // Root organism: default to a fresh prey with base alarm strength.
             this.role = "prey";
             this.alarmStrength = Hyperparams.alarmSignallingEnabled ? 0.5 : 0;
             this.lineageId = this.generateLineageId();
@@ -41,6 +43,7 @@ class Organism {
         }
 
         if (this.role === "predator") {
+            
             this.food_collected = Hyperparams.predatorStartingFood;
 
         }
@@ -65,17 +68,19 @@ class Organism {
 
     }
 
+    /** Generates a unique identifier shared by all descendants of a given founder organism. */
     generateLineageId() {
         return `lineage_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     }
 
+    /** Generates a unique identifier for this specific organism instance. */
     generateId() {
         return `org_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
     }
 
     inherit(parent) {
 
-        // ensure role consistency
+        //  // Ensure role consistency between parent and child.
         this.role = parent.role;
         this.lineageId = parent.lineageId;
 
@@ -124,13 +129,11 @@ class Organism {
 
         // identity
         this.species = parent.species;
-        if (this.role === "prey") { 
-            
-            
-            if (Hyperparams.alarmSignallingEnabled) {
-                // Keep each lineage's alarm probability fixed so all descendants share the same value.
-                //this.alarmStrength = parent.alarmStrength;
+        if (this.role === "prey") {
 
+
+            if (Hyperparams.alarmSignallingEnabled) {
+                // Apply a small random drift (+/- 0.025) to alarm strength each generation.
                 let mutation = (Math.random() - 0.5) * 0.05; // ±0.025 per generation
                 this.alarmStrength = Math.max(0, Math.min(1, parent.alarmStrength + mutation));
             } else {
@@ -143,12 +146,16 @@ class Organism {
         this.parentId = parent.id;
         this.generation = parent.generation + 1;
 
-        // keep a short ancestor chain (last N generations) for relatedness calc
+        //Keep a short ancestor chain (last N generations) for relatedness calculations.
         this.ancestors = [...(parent.ancestors || []), parent.id].slice(-4);
 
     }
 
-
+    /**
+    * Checks whether any living predator is within the given radius of this organism.
+    * @param {number} radius - Detection radius in grid units.
+    * @returns {boolean} True if a predator is nearby.
+    */
     detectPredator(radius = 15) {
         let radiusSq = radius * radius;
         for (let org of this.env.organisms) {
@@ -160,6 +167,11 @@ class Organism {
         return false;
     }
 
+    /**
+    * Debug/logging helper: prints details about an alarm call and its recipients.
+    * (Currently unused — see commented-out call site in broadcastAlarm.)
+    * @param {Array} recipients - List of kin who received the alarm.
+    */
     logAlarmCall(recipients) {
         if (!this.living || this.role !== "prey" || recipients.length === 0) return;
 
@@ -179,6 +191,12 @@ class Organism {
         console.log(details.join(""));
     }
 
+    /**
+     * Broadcasts an alarm call to nearby prey, causing kin above the relatedness
+     * threshold to flee strongly and non-kin to react only slightly.
+     * @param {number} radius - Broadcast radius.
+     * @param {boolean} logCall - Whether to log the call (currently disabled).
+     */
     broadcastAlarm(radius, logCall = false) {
         let env = this.env;
         let radiusSq = radius * radius;
@@ -195,15 +213,15 @@ class Organism {
             let distSq = dx * dx + dy * dy;
 
             if (distSq <= radiusSq) {
-                // only alert kin above relatedness threshold
+                // only strongly alert kin above relatedness threshold
                 let r = this.calcRelatedness(org);
                 org.heardAlarm = true;
                 org.alarmSource = { c: this.c, r: this.r };
 
                 if (r >= Hyperparams.relatednessLevel) {
-                    
+
                     const preySpeedMultiplier = Hyperparams.preyAlarmSpeedMultiplier || 1;
-                    org.fleeTimer = Math.floor(20+ fleeMultiplier  *this.alarmStrength);
+                    org.fleeTimer = Math.floor(20 + fleeMultiplier * this.alarmStrength);
                     recipients.push({
                         id: org.id,
                         relatedness: r,
@@ -221,16 +239,21 @@ class Organism {
         // }
     }
 
-    // amount of food required before it can reproduce
+    /**
+     * Calculates how much food this organism needs to accumulate before it can reproduce.
+     * Prey and predators use different scaling formulas.
+     * @returns {number} Required food amount.
+     */
     foodNeeded() {
         let base = this.anatomy.is_mover ? this.anatomy.cells.length + Hyperparams.extraMoverFoodCost : this.anatomy.cells.length;
         if (this.role === "prey") {
             return Math.max(1, Math.floor(base * 15.0));
         }
-        const multiplier = this.role === "predator" ? Hyperparams.predatorReproductionMultiplier : 1;
+        const multiplier = this.role === "predator" ? Hyperparams.predatorFoodRequirementMultiplier : 1;
         return base * multiplier;
     }
 
+    /** Calculates the maximum lifetime (in ticks) this organism may live before dying of old age. */
     lifespan() {
         const multiplier = this.role === "predator" ? Hyperparams.predatorLifespanMultiplier : 1;
         return this.anatomy.cells.length * Hyperparams.lifespanMultiplier * multiplier;
@@ -242,7 +265,6 @@ class Organism {
 
     reproduce() {
         const foodCost = this.foodNeeded();
-
 
         //check nearby locations (is there room and a direct path)
         var org = new Organism(0, 0, this.env, this);
@@ -301,6 +323,7 @@ class Organism {
         Math.max(this.food_collected -= this.foodNeeded(), 0);
     }
 
+    // * NOTE: currently short-circuited — always returns false before mutation logic runs, as mutation is disabled for this project.
     mutate() {
 
         return false;
@@ -429,7 +452,12 @@ class Organism {
         this.move_count = 0;
     }
 
-    // assumes either c1==c2 or r1==r2, returns true if there is a clear path from point 1 to 2
+    /**
+     * Checks that a straight line path (horizontal or vertical only) between two points
+     * is entirely passable for this organism.
+     * Assumes either c1==c2 or r1==r2.
+     * @returns {boolean} True if there is a clear path from point 1 to point 2.
+     */
     isStraightPath(c1, r1, c2, r2, parent) {
         if (c1 == c2) {
             if (r1 > r2) {
@@ -461,6 +489,11 @@ class Organism {
         }
     }
 
+    /**
+     * Determines whether a given grid cell can be passed through when
+     * checking a straight-line path (used by reproduction placement).
+     * @returns {boolean} True if the cell is passable.
+     */
     isPassableCell(cell, parent) {
         if (cell == null) return false;
         if (this.role === "predator" && this.env.isInSafeZone(cell.col, cell.row)) return false;
@@ -533,6 +566,13 @@ class Organism {
         }
     }
 
+    /**
+     * Main per-tick update: ages the organism, handles starvation/lifespan death,
+     * runs the alarm-signalling system (for prey), executes each anatomy cell's
+     * behaviour, handles reproduction, and resolves movement decisions
+     * (brain-driven for prey, target-chasing for predators).
+     * @returns {boolean} Whether the organism is still living after this tick.
+     */
     update() {
         const effectivenessOffset = Hyperparams.alarmEffectivenessOffset;
 
@@ -540,7 +580,7 @@ class Organism {
         const radiusMultiplier = 60 + 20 * effectivenessOffset;
         if (this.alarmCooldown > 0) this.alarmCooldown--;
         if (this.fleeTimer > 0) this.fleeTimer--;
-        
+
 
         this.lifetime++;
 
@@ -550,13 +590,11 @@ class Organism {
             const starvationThreshold = Math.max(10, Math.floor(Hyperparams.predatorStarvationBase + this.lifetime * Hyperparams.predatorStarvationAgeFactor));
             if (this.ticksSinceMeal > starvationThreshold) {
                 this.die();
-                console.log(`Died of starvation.` + this.ticksSinceMeal);
-                //console.log(`Died of starvation.` + this.ticksSinceMeal);
                 return this.living;
             }
         }
 
-        //If predator hasn't moved
+        // If predator hasn't moved in a while, force a random direction/rotation change to avoid predators getting stuck in corners or against walls. 
         if (this.role === "predator") {
             this.lastPos = this.lastPos || { c: this.c, r: this.r };
             this.stuckTimer = this.stuckTimer || 0;
@@ -575,7 +613,7 @@ class Organism {
             }
         }
 
-
+        // Die of old age if lifespan has been exceeded.
         if (this.lifetime > this.lifespan()) {
             this.die();
             return this.living;
@@ -583,12 +621,10 @@ class Organism {
 
 
 
-        // 1. PREY ALARM SYSTEM
+        // PREY ALARM SYSTEM
         if (this.role === "prey") {
             if (Hyperparams.alarmSignallingEnabled) {
                 let shouldLogAlarmCall = false;
-
-                //let predatorNearby = this.detectPredator();
 
                 //Alarm call sent if predators and kin are nearby
                 if (
@@ -600,7 +636,7 @@ class Organism {
                     !this.env.isInSafeZone(this.c, this.r)
                 ) {
                     shouldLogAlarmCall = true;
-                    this.alarmCallTimer =  Math.floor(20 + callMultiplier  * this.alarmStrength);
+                    this.alarmCallTimer = Math.floor(20 + callMultiplier * this.alarmStrength);
                     this.alarmCooldown = 3;
                     if (this.env && typeof this.env.alarmCallsThisWindow === 'number') {
                         this.env.alarmCallsThisWindow++;
@@ -614,15 +650,13 @@ class Organism {
                     this.isCallingAlarm = false;
                 }
 
-                //Calls broadcast if alarm is active
+                /// Calls are broadcast to nearby prey while the alarm is active.
                 if (this.isCallingAlarm) {
-                    
-                    const broadcastRadius = Math.floor( 30 + radiusMultiplier  * this.alarmStrength );
+                    const broadcastRadius = Math.floor(30 + radiusMultiplier * this.alarmStrength);
                     this.broadcastAlarm(broadcastRadius, shouldLogAlarmCall);
-                    
                 }
 
-                //
+                // Track whether this organism currently incurs the alarm-call movement penalty.
                 if (this.isCallingAlarm) {
                     this.alarmMovePenalty = true;
                 } else {
@@ -631,6 +665,7 @@ class Organism {
 
 
             } else {
+                // Alarm signalling disabled: reset all alarm-related state.
                 this.isCallingAlarm = false;
                 this.fleeTimer = 0;
                 this.alarmSource = null;
@@ -648,188 +683,188 @@ class Organism {
             this.reproduce();
         }
 
-        //  MOVEMENT DECISION 
+        //  Movement decisions: prey use their brain, predators chase targets (prey or alarm callers).
         let dontmove = false;
 
         if (this.anatomy.is_mover) {
-            
-
-                const Decision = Brain.Decision;
-
-                let brain_decision = Decision.neutral;
-                let brain_direction = 0;
 
 
-                // Predator brain for movement decisions - overrides prey brain if predator has a target
-                if (this.role === "predator") {
-                    // always check for alarm caller first — overrides existing target
-                    let alarmTarget = Hyperparams.alarmSignallingEnabled
-                        ? this.detectAlarmCaller()
-                        : null;
+            const Decision = Brain.Decision;
 
-                    if (alarmTarget && Math.random() < Hyperparams.predatorAlarmResponseProbability) {
-                        this.target = alarmTarget;
-                        this.targetType = "alarm";
-                        this.targetTimer = 50;
+            let brain_decision = Decision.neutral;
+            let brain_direction = 0;
+
+
+            // Predator brain for movement decisions - overrides prey brain if predator has a target
+            if (this.role === "predator") {
+                // always check for alarm caller first — overrides existing target
+                let alarmTarget = Hyperparams.alarmSignallingEnabled
+                    ? this.detectAlarmCaller()
+                    : null;
+
+                if (alarmTarget && Math.random() < Hyperparams.predatorAlarmResponseProbability) {
+                    this.target = alarmTarget;
+                    this.targetType = "alarm";
+                    this.targetTimer = 50;
+                } else {
+                    const hasTarget = this.target && this.target.living;
+
+                    if (!hasTarget || this.targetTimer <= 0 || this.targetType !== "prey") {
+                        let preyTarget = this.detectPrey();
+                        this.target = preyTarget || this.target || null;
+                        this.targetType = preyTarget ? "prey" : this.targetType;
+                        this.targetTimer = preyTarget ? 50 : 0;
                     } else {
-                        const hasTarget = this.target && this.target.living;
-
-                        if (!hasTarget || this.targetTimer <= 0 || this.targetType !== "prey") {
-                            let preyTarget = this.detectPrey();
-                            this.target = preyTarget || this.target || null;
-                            this.targetType = preyTarget ? "prey" : this.targetType;
-                            this.targetTimer = preyTarget ? 50 : 0;
-                        } else {
-                            this.targetTimer--;
-                        }
+                        this.targetTimer--;
                     }
+                }
 
-                    if (!this.target) {
-                        // fallback behavior: wander instead of freezing
+                if (!this.target) {
+                    // fallback behavior: wander instead of freezing
+                    if (Math.random() < 0.2) {
+                        this.changeDirection(Directions.getRandomDirection());
+                    }
+                    this.attemptMove();
+                    return this.living;
+                }
+                // Chase only 
+                if (this.target && this.target.living) {
+                    let dx = this.target.c - this.c;
+                    let dy = this.target.r - this.r;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        this.changeDirection(dx > 0 ? Directions.right : Directions.left);
+                    } else {
+                        this.changeDirection(dy > 0 ? Directions.down : Directions.up);
+                    }
+                } else {
+                    // no prey target — spread out from other predators
+                    let nearbyPredators = this.env.organisms.filter(o =>
+                        o !== this && o.role === "predator" &&
+                        Math.abs(o.c - this.c) < 15 &&
+                        Math.abs(o.r - this.r) < 15
+                    );
+
+                    if (nearbyPredators.length > 0) {
+                        let nearest = nearbyPredators[0];
+                        let dx = this.c - nearest.c;
+                        let dy = this.r - nearest.r;
+                        this.changeDirection(Math.abs(dx) > Math.abs(dy) ?
+                            (dx > 0 ? Directions.right : Directions.left) :
+                            (dy > 0 ? Directions.down : Directions.up));
+                    } else {
+                        // no nearby predators either — wander randomly
                         if (Math.random() < 0.2) {
                             this.changeDirection(Directions.getRandomDirection());
                         }
-                        this.attemptMove();
-                        return this.living;
                     }
-                    // CHASE ONLY 
-                    if (this.target && this.target.living) {
-                        let dx = this.target.c - this.c;
-                        let dy = this.target.r - this.r;
-                        if (Math.abs(dx) > Math.abs(dy)) {
-                            this.changeDirection(dx > 0 ? Directions.right : Directions.left);
-                        } else {
-                            this.changeDirection(dy > 0 ? Directions.down : Directions.up);
-                        }
-                    } else {
-                        // no prey target — spread out from other predators
-                        let nearbyPredators = this.env.organisms.filter(o =>
-                            o !== this && o.role === "predator" &&
-                            Math.abs(o.c - this.c) < 15 &&
-                            Math.abs(o.r - this.r) < 15
-                        );
-
-                        if (nearbyPredators.length > 0) {
-                            let nearest = nearbyPredators[0];
-                            let dx = this.c - nearest.c;
-                            let dy = this.r - nearest.r;
-                            this.changeDirection(Math.abs(dx) > Math.abs(dy) ?
-                                (dx > 0 ? Directions.right : Directions.left) :
-                                (dy > 0 ? Directions.down : Directions.up));
-                        } else {
-                            // no nearby predators either — wander randomly
-                            if (Math.random() < 0.2) {
-                                this.changeDirection(Directions.getRandomDirection());
-                            }
-                        }
-                    }
-
-                    brain_decision = Decision.neutral;
                 }
 
-                // PREY BRAIN 
-                if (this.role === "prey" && this.anatomy.has_eyes) {
-                    let result = this.brain.decide();
-                    brain_decision = result.decision;
-                    brain_direction = result.move_direction;
-                }
+                brain_decision = Decision.neutral;
+            }
 
-                // ALARM MOVEMENT OVERRIDE -  caller takes priority
-                if (this.role === "prey" && this.isCallingAlarm) {
-                    // decoy: run away from kin
-                    let nearestKin = this.detectNearestKin();
-                    if (nearestKin) {
-                        let dx = this.c - nearestKin.c;
-                        let dy = this.r - nearestKin.r;
-                        this.changeDirection(Directions.fromVector(dx, dy));
-                        brain_decision = Decision.neutral;
-                    }
-                } else if (this.role === "prey" && this.fleeTimer > 0 && this.alarmSource) {
-                    // hearer: flee away from alarm source
-                    let dx = this.c - this.alarmSource.c;
-                    let dy = this.r - this.alarmSource.r;
+            // PREY BRAIN 
+            if (this.role === "prey" && this.anatomy.has_eyes) {
+                let result = this.brain.decide();
+                brain_decision = result.decision;
+                brain_direction = result.move_direction;
+            }
+
+            // // ALARM MOVEMENT OVERRIDE - the caller's own movement takes priority.
+            if (this.role === "prey" && this.isCallingAlarm) {
+                // decoy: run away from kin
+                let nearestKin = this.detectNearestKin();
+                if (nearestKin) {
+                    let dx = this.c - nearestKin.c;
+                    let dy = this.r - nearestKin.r;
                     this.changeDirection(Directions.fromVector(dx, dy));
                     brain_decision = Decision.neutral;
                 }
+            } else if (this.role === "prey" && this.fleeTimer > 0 && this.alarmSource) {
+                // hearer: flee away from alarm source
+                let dx = this.c - this.alarmSource.c;
+                let dy = this.r - this.alarmSource.r;
+                this.changeDirection(Directions.fromVector(dx, dy));
+                brain_decision = Decision.neutral;
+            }
 
-                if (this.role === "prey") {
-                    // if brain wants to chase food but there are too many prey nearby, wander instead
-                    if (brain_decision === Decision.chase) {
-                        let nearbyPrey = this.env.organisms.filter(o =>
-                            o !== this && o.role === "prey" &&
-                            Math.abs(o.c - this.c) < 3 &&
-                            Math.abs(o.r - this.r) < 3
-                        ).length;
+            if (this.role === "prey") {
+                // if brain wants to chase food but there are too many prey nearby, wander instead
+                if (brain_decision === Decision.chase) {
+                    let nearbyPrey = this.env.organisms.filter(o =>
+                        o !== this && o.role === "prey" &&
+                        Math.abs(o.c - this.c) < 3 &&
+                        Math.abs(o.r - this.r) < 3
+                    ).length;
 
-                        if (nearbyPrey > 7) {
-                            this.changeDirection(Directions.getRandomDirection());
-                        }
+                    if (nearbyPrey > 7) {
+                        this.changeDirection(Directions.getRandomDirection());
                     }
                 }
+            }
 
-                // Prey brain for movement decisions
-                switch (brain_decision) {
-                    case Decision.chase:
-                        this.changeDirection(brain_direction);
-                        break;
+            // Translate the brain's decision into a concrete movement/rotation action.
+            switch (brain_decision) {
+                case Decision.chase:
+                    this.changeDirection(brain_direction);
+                    break;
 
-                    case Decision.retreat:
-                        this.changeDirection(Directions.getOppositeDirection(brain_direction));
-                        break;
+                case Decision.retreat:
+                    this.changeDirection(Directions.getOppositeDirection(brain_direction));
+                    break;
 
-                    case Decision.move_left:
-                        this.changeDirection(Directions.getLeftDirection(brain_direction));
-                        break;
+                case Decision.move_left:
+                    this.changeDirection(Directions.getLeftDirection(brain_direction));
+                    break;
 
-                    case Decision.move_right:
-                        this.changeDirection(Directions.getRightDirection(brain_direction));
-                        break;
+                case Decision.move_right:
+                    this.changeDirection(Directions.getRightDirection(brain_direction));
+                    break;
 
-                    case Decision.turn_left:
-                        if (!this.attemptRotate(Directions.getLeftDirection(this.rotation))) {
-                            this.changeDirection(Directions.getRandomDirection());
-                        }
-                        return this.living;
-
-                    case Decision.turn_right:
-                        if (!this.attemptRotate(Directions.getRightDirection(this.rotation))) {
-                            this.changeDirection(Directions.getRandomDirection());
-                        }
-                        return this.living;
-
-                    case Decision.stop:
-                        this.preyStuckTimer = (this.preyStuckTimer || 0) + 1;
-                        if (this.preyStuckTimer > 30) {
-                            this.changeDirection(Directions.getRandomDirection());
-                            this.preyStuckTimer = 0;
-                        }
-                        break;
-                }
-
-
-                // MOVE
-                let moveAttempts = 1;
-                if (this.role === "prey" && this.fleeTimer > 0) {
-                    moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier || 1));
-                }
-
-                for (let attempt = 0; attempt < moveAttempts; attempt++) {
-                    let moved = this.attemptMove();
-
-                    if (!moved) {
-                        let rotated = this.attemptRotate();
-                        if (!rotated) {
-                            this.changeDirection(Directions.getRandomDirection());
-                        }
-                    } else {
-                        this.move_count++;
+                case Decision.turn_left:
+                    if (!this.attemptRotate(Directions.getLeftDirection(this.rotation))) {
+                        this.changeDirection(Directions.getRandomDirection());
                     }
-                    if (this.role === "predator") {
-                        this.checkForPreyCollision();
-                    }
-                }
+                    return this.living;
 
-            
+                case Decision.turn_right:
+                    if (!this.attemptRotate(Directions.getRightDirection(this.rotation))) {
+                        this.changeDirection(Directions.getRandomDirection());
+                    }
+                    return this.living;
+
+                case Decision.stop:
+                    this.preyStuckTimer = (this.preyStuckTimer || 0) + 1;
+                    if (this.preyStuckTimer > 30) {
+                        this.changeDirection(Directions.getRandomDirection());
+                        this.preyStuckTimer = 0;
+                    }
+                    break;
+            }
+
+
+            // MOVE (possibly multiple times per tick for fleeing prey).
+            let moveAttempts = 1;
+            if (this.role === "prey" && this.fleeTimer > 0) {
+                moveAttempts = Math.max(1, Math.floor(Hyperparams.preyAlarmSpeedMultiplier || 1));
+            }
+
+            for (let attempt = 0; attempt < moveAttempts; attempt++) {
+                let moved = this.attemptMove();
+
+                if (!moved) {
+                    let rotated = this.attemptRotate();
+                    if (!rotated) {
+                        this.changeDirection(Directions.getRandomDirection());
+                    }
+                } else {
+                    this.move_count++;
+                }
+                if (this.role === "predator") {
+                    this.checkForPreyCollision();
+                }
+            }
+
+
         }
 
         this.heardAlarm = false;
@@ -878,6 +913,11 @@ class Organism {
             this.brain.copy(org.brain)
     }
 
+    /**
+     * For predators: finds the first living prey organism within radius, ignoring any in a safe zone.
+     * @param {number} radius - Detection radius.
+     * @returns {Organism|null} The detected prey, or null if none found.
+     */
     detectPrey(radius = 30) {
         let radiusSq = radius * radius;
         for (let org of this.env.organisms) {
@@ -890,7 +930,12 @@ class Organism {
         return null;
     }
 
-    //For predators: detect alarm calls from prey and pursue that prey instead 
+    /**
+    * For predators: detects a nearby prey that is currently calling an alarm,
+    * so the predator can pursue that prey instead of a default target.
+    * @param {number} radius - Detection radius.
+    * @returns {Organism|null} The alarm-calling prey, or null if none found.
+    */
     detectAlarmCaller(radius = 40) {
         if (!Hyperparams.alarmSignallingEnabled) return null;
 
@@ -913,52 +958,63 @@ class Organism {
         return null;
     }
 
-calcRelatedness(other) {
-    if (this === other) return 1;
+    /**
+     * Estimates the genetic relatedness between this organism and another,
+     * based on direct parent/child, sibling, ancestor, and shared-ancestor relationships.
+     * @param {Organism} other - The organism to compare against.
+     * @returns {number} Estimated relatedness coefficient (0 to 1).
+     */
+    calcRelatedness(other) {
+        if (this === other) return 1;
 
-    // Direct parent-child = 0.5
-    if (this.parentId === other.id || other.parentId === this.id) {
-        return 0.5;
-    }
+        // Direct parent-child = 0.5
+        if (this.parentId === other.id || other.parentId === this.id) {
+            return 0.5;
+        }
 
-    // Siblings share the same parent = 0.5
-    if (this.parentId && this.parentId === other.parentId) {
-        return 0.5;
-    }
+        // Siblings share the same parent = 0.5
+        if (this.parentId && this.parentId === other.parentId) {
+            return 0.5;
+        }
 
-    const myAncestors = this.ancestors || [];
-    const otherAncestors = other.ancestors || [];
+        const myAncestors = this.ancestors || [];
+        const otherAncestors = other.ancestors || [];
 
-    // This organism is an ancestor of the other
-    if (otherAncestors.includes(this.id)) {
-        const generationsBack =
-            otherAncestors.length - otherAncestors.indexOf(this.id);
+        // This organism is an ancestor of the other
+        if (otherAncestors.includes(this.id)) {
+            const generationsBack =
+                otherAncestors.length - otherAncestors.indexOf(this.id);
 
-        return Math.pow(0.5, generationsBack);
-    }
+            return Math.pow(0.5, generationsBack);
+        }
 
-    // The other organism is an ancestor of this one
-    if (myAncestors.includes(other.id)) {
-        const generationsBack =
-            myAncestors.length - myAncestors.indexOf(other.id);
+        // The other organism is an ancestor of this one
+        if (myAncestors.includes(other.id)) {
+            const generationsBack =
+                myAncestors.length - myAncestors.indexOf(other.id);
 
-        return Math.pow(0.5, generationsBack);
-    }
+            return Math.pow(0.5, generationsBack);
+        }
 
-    // Check for shared ancestors
-    for (let i = 0; i < myAncestors.length; i++) {
-        for (let j = 0; j < otherAncestors.length; j++) {
-            if (myAncestors[i] === otherAncestors[j]) {
-                const generationsBack = Math.max(i, j) + 1;
+        // Check for shared ancestors
+        for (let i = 0; i < myAncestors.length; i++) {
+            for (let j = 0; j < otherAncestors.length; j++) {
+                if (myAncestors[i] === otherAncestors[j]) {
+                    const generationsBack = Math.max(i, j) + 1;
 
-                return Math.pow(0.5, generationsBack);
+                    return Math.pow(0.5, generationsBack);
+                }
             }
         }
+
+        return 0;
     }
 
-    return 0;
-}
-
+    /**
+     * Checks whether a related prey organism (at or above the relatedness threshold)
+     * exists within radius.
+     * @returns {boolean} True if kin is nearby.
+     */
     detectKin(radius = 30, threshold = Hyperparams.relatednessLevel) {
         let radiusSq = radius * radius;
         for (let org of this.env.organisms) {
@@ -972,6 +1028,11 @@ calcRelatedness(other) {
         return false;
     }
 
+    /**
+     * Finds the closest related prey organism (at or above the relatedness threshold)
+     * within radius.
+     * @returns {Organism|null} The nearest qualifying kin, or null if none found.
+     */
     detectNearestKin(radius = 30, threshold = Hyperparams.relatednessLevel) {
         let radiusSq = radius * radius;
         let nearest = null;
@@ -991,6 +1052,11 @@ calcRelatedness(other) {
         return nearest;
     }
 
+    /**
+     * Checks whether this predator is adjacent to any living prey and, if so,
+     * attacks it (dealing harm and collecting food on a kill).
+     * @returns {boolean} True if a collision/attack occurred.
+     */
     checkForPreyCollision() {
         for (let org of this.env.organisms) {
             if (!org || org === this || org.role !== "prey" || !org.living) continue;
@@ -998,10 +1064,8 @@ calcRelatedness(other) {
             let dx = Math.abs(org.c - this.c);
             let dy = Math.abs(org.r - this.r);
 
-            //console.log(`[COLLISION_CHECK] Predator (${this.c},${this.r}) vs Prey (${org.c},${org.r}) dx=${dx} dy=${dy}`);
 
-            if (dx <= 1 && dy <= 1) {
-                // console.log(`[PREDATOR][ATTACK] Predator at (${this.c}, ${this.r}) attacked prey at (${org.c}, ${org.r})`);
+            if (dx <= 1 && dy <= 1) {         
                 org.harm();
                 if (!org.living) {
                     this.food_collected += org.anatomy.cells.length;
@@ -1012,10 +1076,7 @@ calcRelatedness(other) {
         return false;
     }
 
-
-
 }
-
 
 
 module.exports = Organism;

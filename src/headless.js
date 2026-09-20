@@ -46,8 +46,7 @@ global.$ = new Proxy(function () { return jqChain; }, {
     }
 });
 
-// ─── CLI argument parsing ─────────────────────────────────────────────────────
-
+// Parses command-line arguments into an options object.
 function parseArgs(argv) {
     const opts = {};
 
@@ -95,6 +94,7 @@ const ALARM_EFFECTIVENESS_OFFSET = opts['alarm-effectiveness-offset']
     ? parseFloat(opts['alarm-effectiveness-offset'])
     : null;
 
+// Validate required command-line arguments.
 if (isNaN(MAX_TICKS) || MAX_TICKS <= 0) {
     console.error(
         'Usage: node src/headless.js --max-ticks <N>\n' +
@@ -127,8 +127,7 @@ if (isNaN(CELL_SIZE) || CELL_SIZE <= 0) {
     process.exit(1);
 }
 
-// ─── Load simulation modules ──────────────────────────────────────────────────
-
+// Load simulation dependencies.
 const WorldConfig = require('./WorldConfig');
 const Hyperparams = require('./Hyperparameters');
 const WorldEnvironment = require('./Environments/WorldEnvironment');
@@ -139,11 +138,11 @@ WorldConfig.headless = true;
 WorldConfig.auto_pause = false;
 WorldConfig.auto_reset = false;
 
+// Load and apply configuration parameters.
 if (CONFIG) {
     const raw = JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
 
-    // Serialized env files store hyperparams under 'controls';
-    // plain param files are used directly
+    // Support both saved environments and standalone parameter files.
     Hyperparams.loadJsonObj(raw.controls || raw);
 
     console.log(`[headless] Hyperparameters loaded from ${CONFIG}`);
@@ -174,7 +173,7 @@ if (PREDATOR_LIFESPAN_MULTIPLIER !== null) {
 }
 
 if (PREDATOR_REPRODUCTION_MULTIPLIER !== null) {
-    Hyperparams.predatorReproductionMultiplier = PREDATOR_REPRODUCTION_MULTIPLIER;
+    Hyperparams.predatorFoodRequirementMultiplier = PREDATOR_REPRODUCTION_MULTIPLIER;
     console.log(
         `[headless] Predator reproduction multiplier set to ${PREDATOR_REPRODUCTION_MULTIPLIER}`
     );
@@ -187,8 +186,7 @@ if (ALARM_EFFECTIVENESS_OFFSET !== null) {
     );
 }
 
-// ─── Minimal engine shim ──────────────────────────────────────────────────────
-
+// Provides the engine interface required by the simulation.
 const engine = {
     fps: Infinity,
     last_fps: Infinity,
@@ -209,8 +207,8 @@ const engine = {
     },
 };
 
-// ─── Boot environment ─────────────────────────────────────────────────────────
 
+// Initialise the simulation environment.
 const env = new WorldEnvironment(engine, CELL_SIZE);
 
 if (LOAD) {
@@ -251,8 +249,7 @@ if (LOAD) {
 env.OriginOfLife();
 }
 
-// ─── Simulation loop ──────────────────────────────────────────────────────────
-
+// Run the simulation until the maximum tick count or total extinction.
 console.log(
     `[headless] Starting: max_ticks=${MAX_TICKS}  grid=${env.grid_map.cols}x${env.grid_map.rows}  output=${OUTPUT}`
 );
@@ -298,8 +295,7 @@ console.log(
     (reached_max ? ' (reached max-ticks)' : ' (extinction)')
 );
 
-// ─── Save results ─────────────────────────────────────────────────────────────
-
+// Save the simulation results.
 const runData = FossilRecord.serialize();
 
 fs.writeFileSync(OUTPUT, JSON.stringify(runData));

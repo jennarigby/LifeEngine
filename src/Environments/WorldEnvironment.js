@@ -31,31 +31,40 @@ class WorldEnvironment extends Environment {
         this.data_update_rate = 100;
         this._autoStopped = false;
         this.safeZones = [];
+
+        // Store the seed used to generate deterministic world layouts.
         this.worldSeed = normalizeSeed(WorldConfig.seed);
         this.seedRng = createSeededRng(this.worldSeed);
+
+        // Track the number of alarm calls made within a fixed time window.
         this.alarmCallsThisWindow = 0;
         this.alarmCallWindowSize = 500;
         this.totalAlarmCallsLogged = 0;
         FossilRecord.setEnv(this);
+
+        // Create the safe zones used by prey to escape predation.
         this.createSafeZone();
     }
 
+    // Sets the world seed and regenerates the deterministic world layout, including the safe-zone configuration.
     setSeed(seed) {
+        // Normalise the supplied seed so it can be used consistently throughout the simulation.
         this.worldSeed = normalizeSeed(seed);
         WorldConfig.seed = this.worldSeed;
         this.seedRng = createSeededRng(this.worldSeed);
         this.createSafeZone();
     }
 
+    // Creates the safe zones for the current world using the configured seed.
     createSafeZone() {
         this.safeZones = getSafeZonePreset(this.worldSeed, this.grid_map.cols, this.grid_map.rows);
     }
 
+    // Determines whether a given grid cell is located within a safe zone.
     isInSafeZone(c, r) {
         if (!this.safeZones || this.safeZones.length === 0) return false;
         return this.safeZones.some(zone => c >= zone.cMin && c < zone.cMax && r >= zone.rMin && r < zone.rMax);
     }
-
 
     update() {
 
@@ -84,11 +93,6 @@ class WorldEnvironment extends Environment {
                     ? Math.max(...prey.map(p => p.anatomy.cells.length))
                     : 0;
 
-            // console.log(`
-            // === TICK ${this.total_ticks} ===
-            // Prey Count: ${prey.length}
-            // Predator Count: ${preds.length}
-            // `);
 
         }
         var to_remove = [];
@@ -111,12 +115,6 @@ class WorldEnvironment extends Environment {
                 ? prey.reduce((sum, o) => sum + o.alarmStrength, 0) / prey.length
                 : 0;
 
-            // console.log(JSON.stringify({
-            //     tick: currentTick,
-            //     preyCount: prey.length,
-            //     alarmCallsThisWindow: this.alarmCallsThisWindow,
-            //     avgalarmStrength: avgP.toFixed(3)
-            // }));
         }
 
         if (currentTick % this.alarmCallWindowSize === 0) {
@@ -256,6 +254,9 @@ class WorldEnvironment extends Environment {
         var prob = Hyperparams.foodDropProb;
 
         var cornerSize = Math.floor(Math.min(this.grid_map.cols, this.grid_map.rows) / 4);
+
+        // Define the regions in which food can be generated.
+        // Four regions are positioned in the corners of the environment, with an additional region placed in the centre.
         var regions = [
             { cMin: 0, cMax: cornerSize, rMin: 0, rMax: cornerSize },
             { cMin: this.grid_map.cols - cornerSize, cMax: this.grid_map.cols, rMin: 0, rMax: cornerSize },
@@ -270,7 +271,7 @@ class WorldEnvironment extends Environment {
             }
         ];
 
-        // Path connections between patches — define pairs of region centres
+        // Calculate the centre point of each food region. These points are used as the endpoints of the food paths.
         const regionCentres = regions.map(reg => ({
             c: Math.floor((reg.cMin + reg.cMax) / 2),
             r: Math.floor((reg.rMin + reg.rMax) / 2)
@@ -296,7 +297,7 @@ class WorldEnvironment extends Environment {
                 let steps = Math.floor(Math.sqrt((c2 - c1) ** 2 + (r2 - r1) ** 2));
 
                 for (let s = 0; s < steps; s++) {
-                    // only place food occasionally along path — sparse trail
+                    // only place food occasionally along path 
                     if (Math.random() > 0.05) continue;
 
                     let t = s / steps;

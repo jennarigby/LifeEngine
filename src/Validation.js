@@ -9,7 +9,7 @@ class Validation {
         this.testMutation();
         console.log("=== Validation Complete ===");
     }
-    // ── Relatedness tests ─────────────────────────────────────────────────
+    //Relatedness tests
 static testRelatedness() {
     console.log("\n-- Relatedness Tests --");
 
@@ -30,7 +30,7 @@ static testRelatedness() {
         return organism;
     };
 
-    // ── Create pedigree ───────────────────────────────────────────────
+    // Create pedigree
 
     // Founder
     const founder = createOrganism("founder");
@@ -52,7 +52,7 @@ static testRelatedness() {
     const greatGreatGrandchild =
         createOrganism("greatGreatGrandchild", greatGrandchild);
 
-    // ── Assertions ───────────────────────────────────────────────────
+    //Assertions 
 
     const assert = (label, actual, expected) => {
         const pass = Math.abs(actual - expected) < 0.001;
@@ -138,7 +138,7 @@ static testRelatedness() {
     );
 }
 
-    // ── Alarm cooldown test ───────────────────────────────────────────────
+    // Alarm cooldown test
     static testAlarmCooldown() {
         console.log("\n-- Alarm Cooldown Test --");
         let org = { alarmCooldown: 0, isCallingAlarm: false };
@@ -156,7 +156,7 @@ static testRelatedness() {
         console.log(`${pass ? "PASS" : "FAIL"} Alarm cooldown reaches 0 after 10 ticks`);
     }
 
-    // ── Alarm broadcast radius test ───────────────────────────────────────
+    // Alarm broadcast radius test
     static testAlarmBroadcast() {
         console.log("\n-- Alarm Broadcast Test --");
 
@@ -181,7 +181,7 @@ static testRelatedness() {
         console.log(`${!farPrey.heardAlarm ? "PASS" : "FAIL"} Far prey did not hear alarm`);
     }
 
-    // ── Mutation bounds test ──────────────────────────────────────────────
+    //Mutation bounds test 
     static testMutation() {
         console.log("\n-- Mutation Bounds Test --");
         let violations = 0;

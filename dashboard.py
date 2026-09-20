@@ -13,10 +13,10 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🧬 ALife Simulation Dashboard")
+st.title(" ALife Simulation Dashboard")
 st.markdown("Upload simulation run files. Files should be named like `control_seed1_run3.json` or `p0.5_seed2_run7.json`.")
 
-# ── File upload ───────────────────────────────────────────────────────────────
+#File upload
 uploaded_files = st.file_uploader(
     "Upload simulation JSON exports",
     type="json",
@@ -27,7 +27,7 @@ if not uploaded_files:
     st.info("Upload one or more simulation JSON files to get started.")
     st.stop()
 
-# ── Parse filename into group/seed/run ────────────────────────────────────────
+# Extracts group, seed, and run information from a filename
 def parse_filename(filename):
     name = filename.replace(".json", "")
     seed_match = re.search(r'seed(\d+)', name)
@@ -37,7 +37,7 @@ def parse_filename(filename):
     group = name.split("_seed")[0] if "_seed" in name else name
     return group, seed, run
 
-# ── Load data ─────────────────────────────────────────────────────────────────
+# Load data
 @st.cache_data(show_spinner=False)
 def load_run(file_bytes, filename):
     data = json.loads(file_bytes)
@@ -74,7 +74,7 @@ group_names = all_groups
 
 st.success(f"Loaded {len(runs)} run(s) across {len(all_groups)} group(s) and {len(all_seeds)} seed(s).")
 
-# ── Group label formatting ────────────────────────────────────────────────────
+# Group label formatting 
 def format_group_label(group):
     """Display group names that start with 'r' followed by digits (e.g. 'r0',
     'r025', 'r05', 'r1') as a relatedness-threshold label like 'r >= 0' or
@@ -93,7 +93,7 @@ def format_group_label(group):
         val = "0." + digits if not stripped else "0." + stripped if digits.startswith("0") else digits
     return f"r >= {val}"
 
-# ── Sidebar controls ──────────────────────────────────────────────────────────
+# Sidebar controls
 st.sidebar.header("Display Options")
 
 view_mode = st.sidebar.radio(
@@ -135,42 +135,28 @@ exclude_extinct = st.sidebar.checkbox(
          "summary stats computed only over runs where predators persisted throughout."
 )
 
+# Applies moving-average smoothing to a series
 def smooth_series(series, window):
     if window <= 1 or not series:
         return series
     s = pd.Series(series)
     return s.rolling(window, min_periods=1).mean().tolist()
 
+# Calculates the mean of a series
 def avg(series):
     return round(sum(series) / len(series), 2) if series else 0
 
+# Formats run identifiers for display
 def format_run(run):
     """Display a run number as e.g. 'r>=0125' (zero-padded to 4 digits)."""
     return f"r>={run:04d}"
 
-# ── Thesis-grade styling ───────────────────────────────────────────────────────
-# Okabe–Ito colors, but reordered so that adjacent indices (the order groups
-# actually get assigned in) alternate dark/light. The original left-to-right
-# order put three mid-tone colors (pink, sky blue, orange) next to each other
-# — they have almost identical grayscale luminance (~150-162) and were
-# indistinguishable once desaturated. This order maximizes the luminance gap
-# between consecutive groups, so the most common case (2-4 groups) still
-# reads clearly in black-and-white.
 PALETTE = ["#000000", "#F0E442", "#0072B2", "#E69F00",
            "#009E73", "#CC79A7", "#D55E00", "#56B4E9"]
 
-# Color alone collapses under greyscale printing/photocopying, so bar, box,
-# and scatter charts get a distinct marker symbol or fill pattern per group.
-# Line charts (population, lifespan, alarm strength) stay solid — with many
-# overlapping run/seed/group logs on one axis, dash patterns just added
-# visual noise, so those rely on the (grayscale-safe) color palette alone,
-# plus a separate shade per prey/predator series where both appear together.
 GROUP_SYMBOLS = ["circle", "square", "diamond", "triangle-up", "x", "cross", "star", "triangle-down"]
 GROUP_PATTERNS = ["", "/", "\\", "x", "-", "|", "+", "."]
 
-# Fixed chart footprint used across the whole dashboard so every figure has
-# the same, thesis-friendly proportions instead of being a thin wide strip
-# (but not a perfect square either).
 CHART_HEIGHT = 460
 
 group_color_map = {group: PALETTE[i % len(PALETTE)] for i, group in enumerate(all_groups)}
@@ -187,9 +173,6 @@ def get_group_pattern(group):
     return group_pattern_map.get(group, "")
 
 def get_color(name, index, pred=False):
-    # `pred=True` shifts along the same shared palette (instead of switching
-    # to a completely different color set) so predator/prey series still look
-    # like they belong to the same figure family.
     offset = len(all_groups) if pred else 0
     return PALETTE[(index + offset) % len(PALETTE)]
 
@@ -203,17 +186,7 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=
     """Apply one consistent, thesis-ready look to every chart: professional
     palette already applied per-trace, axes boxed and anchored at the
     origin/corner, matching size, and a clean white background suitable for
-    print.
-
-    `title`, if given, sets the chart's title text. Charts that already set
-    their own title text (via an earlier update_layout call) don't need to
-    pass this — it merges with, rather than blanks out, whatever text is
-    already there.
-
-    `legend_pad`, when y_range isn't explicitly given, adds headroom above
-    the highest data point so the top-right legend (see the legend block
-    below) has empty space to sit in instead of overlapping the traces.
-    Set to 0/None to disable and fall back to a tight tozero range."""
+    print. """
     title_dict = dict(font=dict(size=15, color="#000000"))
     if title is not None:
         title_dict["text"] = title
@@ -280,15 +253,8 @@ def show_chart(fig, key=None):
     with mid:
         st.plotly_chart(fig, use_container_width=True, key=key)
 
-# ── Interpolation helpers ─────────────────────────────────────────────────────
 def interpolate_to_ticks(ticks, values, target_ticks):
-    """Linear interpolation onto a common set of ticks.
-
-    Uses np.interp instead of a pandas Series index-union + interpolate,
-    which is noticeably faster for long tick arrays and avoids rebuilding
-    a pandas index on every call. Assumes `ticks` is sorted (tick_record
-    should already be monotonic).
-    """
+    """Linear interpolation onto a common set of ticks."""
     if not ticks or not values or not target_ticks:
         return [None] * len(target_ticks)
     ticks_arr = np.asarray(ticks, dtype=float)
@@ -299,17 +265,7 @@ def interpolate_to_ticks(ticks, values, target_ticks):
     return np.interp(target_arr, ticks_arr, values_arr).tolist()
 
 def get_common_ticks(run_list, max_points=2000):
-    """Build a shared set of x-axis ticks to interpolate every run onto.
-
-    Previously the step size came from just the first gap between two
-    recorded ticks in a run. If a run logs densely early on (e.g. while
-    the population is still establishing) and coarsens later, that small
-    early gap got locked in as the step for the whole run — so on a
-    10-million-tick run this could generate millions of target points,
-    which silently truncates when handed to Plotly/the browser instead of
-    erroring. Bounding the point count guarantees the grid always reaches
-    max_tick regardless of how any individual run was logged.
-    """
+    """Build a shared set of x-axis ticks to interpolate every run onto. """
     if not run_list:
         return []
     max_tick = max(r["ticks"][-1] for r in run_list if r["ticks"])
@@ -321,6 +277,7 @@ def get_common_ticks(run_list, max_points=2000):
         ticks = np.append(ticks, max_tick)
     return ticks.tolist()
 
+# Calculates the mean and standard deviation across runs
 def average_runs(run_list, field):
     if not run_list:
         return [], [], []
@@ -331,10 +288,7 @@ def average_runs(run_list, field):
     std_vals = df.std(axis=1).tolist()
     return target_ticks, avg_vals, std_vals
 
-# Memoize average_runs within a single script run: several charts (e.g. the
-# "Both" population/lifespan views) ask for the same (runs, field) combo that
-# another chart just computed. Without this, that work happens twice per
-# rerun; with several groups/seeds it adds up fast.
+# Caches repeated averaging calculations for speedup
 _avg_cache = {}
 def average_runs_cached(run_list, field):
     key = (tuple(sorted(r["name"] for r in run_list)), field)
@@ -342,7 +296,6 @@ def average_runs_cached(run_list, field):
         _avg_cache[key] = average_runs(run_list, field)
     return _avg_cache[key]
 
-# ── Per-run extinction flag ───────────────────────────────────────────────────
 def went_extinct(predator_counts):
     """True if predators established (count > 0 at some point) and later
     dropped back to zero. Ignores the leading zeros at the start of a run
@@ -362,7 +315,7 @@ def went_extinct(predator_counts):
 for r in runs:
     r["extinct"] = went_extinct(r["predators"])
 
-# ── Statistics helpers ────────────────────────────────────────────────────────
+#Statistics helpers
 def summary_stats(values):
     """Mean, sample SD, SEM, and a 95% CI (t-distribution) for a list of
     per-run values. Returns a dict of rounded figures, or all-zero/NaN
@@ -377,9 +330,6 @@ def summary_stats(values):
                 "ci_lo": round(mean, 2), "ci_hi": round(mean, 2)}
     sd = float(np.std(values, ddof=1))
     sem = sd / np.sqrt(n)
-    # t critical value (two-tailed, 95%) rather than the z=1.96 normal
-    # approximation, since n=50 per condition is on the small side for
-    # that approximation to be exact.
     t_crit = stats.t.ppf(0.975, df=n - 1)
     margin = t_crit * sem
     return {
@@ -392,13 +342,7 @@ def summary_stats(values):
     }
 
 def compare_groups(values_a, values_b):
-    """Two-sided Mann-Whitney U test between two independent samples.
-    Mann-Whitney (rather than an independent t-test) is used because
-    predator-extinction runs introduce skew/outliers into several metrics
-    (flagged qualitatively in the paper's Results section), so normality
-    of per-run values isn't a safe assumption. Falls back gracefully when
-    a group has too few runs or zero variance to compute the effect size.
-    """
+    """Two-sided Mann-Whitney U test between two independent samples. """
     a = np.array([v for v in values_a if v is not None], dtype=float)
     b = np.array([v for v in values_b if v is not None], dtype=float)
     if len(a) < 2 or len(b) < 2:
@@ -415,6 +359,40 @@ def compare_groups(values_a, values_b):
     return {"u": float(u_stat), "p": float(p_val), "effect": round(effect_size, 3),
             "n1": n1, "n2": n2}
 
+def seed_level_values(group_runs, agg_func):
+    """Aggregate a group's runs into one value per seed, by averaging any
+    within-seed replicate runs together. Returns {seed: mean_value}."""
+    per_seed = {}
+    for r in group_runs:
+        v = agg_func(r)
+        if v is None:
+            continue
+        per_seed.setdefault(r["seed"], []).append(v)
+    return {seed: float(np.mean(vals)) for seed, vals in per_seed.items() if vals}
+
+def compare_groups_paired(seed_values_a, seed_values_b):
+    """Paired Wilcoxon signed-rank test between two groups, using one
+    aggregated value per seed (treats each seed as an independent replicate,
+    removing pseudo-replication from pooling non-independent runs within a
+    seed). Only seeds present in both groups are used."""
+    common_seeds = sorted(set(seed_values_a) & set(seed_values_b))
+    if len(common_seeds) < 2:
+        return None
+    a = np.array([seed_values_a[s] for s in common_seeds])
+    b = np.array([seed_values_b[s] for s in common_seeds])
+    diffs = a - b
+    if np.all(diffs == 0):
+        return None
+    try:
+        w_stat, p_val = stats.wilcoxon(a, b)
+    except ValueError:
+        return None
+    direction = "consistent" if np.all(diffs > 0) or np.all(diffs < 0) else "mixed"
+    return {
+        "w": float(w_stat), "p": float(p_val), "n_seeds": len(common_seeds),
+        "direction": direction, "diffs": diffs.round(2).tolist(),
+    }
+
 def format_p(p):
     if p is None:
         return "—"
@@ -422,7 +400,7 @@ def format_p(p):
         return "<0.001"
     return f"{p:.3f}"
 
-# ── Filter runs ───────────────────────────────────────────────────────────────
+# Filter runs based on sidebar selections
 filtered_runs = [r for r in runs if r["group"] in selected_groups and r["seed"] in selected_seeds]
 if exclude_extinct:
     filtered_runs = [r for r in filtered_runs if not r["extinct"]]
@@ -449,12 +427,7 @@ for r in filtered_runs:
     })
 summary_df = pd.DataFrame(summary_rows)
 
-# Fields shown with full spread/CI stats in the "Group comparison" table.
-# Each entry maps a display label to (per-run field name, per-run
-# aggregator) — the aggregator turns one run's time series (or, for "final
-# alarm strength", its last value) into the single number that feeds the
-# group's mean/SD/CI, matching how each column is already computed elsewhere
-# in the dashboard.
+# Defines metrics used in summary and significance analyses
 STAT_FIELDS = {
     "Avg Prey": ("prey", lambda r: avg(r["prey"]) if r["prey"] else None),
     "Avg Prey Lifespan": ("prey_lifespan", lambda r: avg(r["prey_lifespan"]) if r["prey_lifespan"] else None),
@@ -486,8 +459,7 @@ if view_mode == "Group comparison (averaged)":
             "Avg Alarm strength": avg([avg(r["alarm_prob"]) for r in group_runs if r["alarm_prob"]]),
             "Final Alarm strength (avg)": avg([r["alarm_prob"][-1] for r in group_runs if r["alarm_prob"]]),
         }
-        # Attach SD and 95% CI for each of the stat fields, e.g.
-        # "Avg Prey Lifespan SD" / "Avg Prey Lifespan 95% CI".
+        # Attach SD and 95% CI for each of the stat fields
         for label in STAT_FIELDS:
             stats_dict = summary_stats(per_group_values[group][label])
             row[f"{label} SD"] = stats_dict["sd"]
@@ -495,7 +467,7 @@ if view_mode == "Group comparison (averaged)":
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    # ── Pairwise significance tests ───────────────────────────────────────
+    # Pairwise significance tests 
     st.subheader("Pairwise Comparisons (Mann-Whitney U)")
     st.caption(
         "Each row compares two groups' per-run values on one metric. Mann-Whitney U "
@@ -511,9 +483,7 @@ if view_mode == "Group comparison (averaged)":
         group_list = [g for g in per_group_values if g != reference_group]
         # Compare every other selected group back to the explicit reference
         # group chosen in the sidebar (defaults to "control" if present),
-        # rather than every possible pair, so the table stays a manageable
-        # size and always reports the comparison you actually want (e.g.
-        # each relatedness threshold vs. control).
+        # rather than every possible pair
         reference = reference_group
         test_rows = []
         for label in STAT_FIELDS:
@@ -538,6 +508,51 @@ if view_mode == "Group comparison (averaged)":
             st.dataframe(pd.DataFrame(test_rows), use_container_width=True, hide_index=True)
         else:
             st.info("Not enough runs per group to compute a test (need at least 2 per group).")
+
+                # Seed-level robustness check (paired across seeds)
+        st.subheader("Seed-Level Robustness Check (Paired Wilcoxon)")
+        st.caption(
+            "Each comparison aggregates runs to one value per seed, then compares "
+            "groups with a paired Wilcoxon signed-rank test across the shared seeds. "
+            "This checks whether the run-level result above holds independently in "
+            "each starting configuration, rather than being driven by pooling "
+            "non-independent runs within a seed. With only a handful of seeds, the "
+            "smallest achievable p-value is limited (e.g. p = 0.0625 at n = 5 seeds "
+            "with a fully consistent direction) — treat this as a directional "
+            "robustness check, not a replacement for the run-level test."
+        )
+        per_group_seed_values = {
+            group: {
+                label: seed_level_values(
+                    [r for r in filtered_runs if r["group"] == group], agg
+                )
+                for label, (_, agg) in STAT_FIELDS.items()
+            }
+            for group in per_group_values
+        }
+        paired_rows = []
+        for label in STAT_FIELDS:
+            for group in group_list:
+                result = compare_groups_paired(
+                    per_group_seed_values[reference][label],
+                    per_group_seed_values[group][label],
+                )
+                if result is None:
+                    continue
+                paired_rows.append({
+                    "Metric": label,
+                    "Group A (reference)": format_group_label(reference),
+                    "Group B": format_group_label(group),
+                    "Seeds used": result["n_seeds"],
+                    "W": round(result["w"], 1),
+                    "p-value": format_p(result["p"]),
+                    "Direction across seeds": result["direction"],
+                    "Per-seed diffs (A−B)": str(result["diffs"]),
+                })
+        if paired_rows:
+            st.dataframe(pd.DataFrame(paired_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Not enough shared seeds between groups to run a paired test (need at least 2).")
     else:
         st.info("Select at least two groups to compare.")
 
@@ -569,9 +584,6 @@ st.caption("A run counts as an extinction if the predator population hits zero a
 
 extinction_rows = []
 for group in selected_groups:
-    # NOTE: this section always looks at every run in the group regardless
-    # of the "exclude extinction runs" toggle above, since it exists
-    # specifically to report the extinction rate itself.
     group_runs = [r for r in runs if r["group"] == group and r["seed"] in selected_seeds]
     if not group_runs:
         continue
@@ -601,7 +613,7 @@ if not extinction_df.empty:
     style_figure(fig, title="Predator Extinctions by Group")
     show_chart(fig, key="chart_predator_extinction")
 
-# ── Chart helper ──────────────────────────────────────────────────────────────
+# Chart helper 
 def make_chart(field, ylabel, title, show_std=False, y_range=None):
     fig = go.Figure()
 
