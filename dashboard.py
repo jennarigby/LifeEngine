@@ -187,7 +187,11 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=
     palette already applied per-trace, axes boxed and anchored at the
     origin/corner, matching size, and a clean white background suitable for
     print. """
-    title_dict = dict(font=dict(size=15, color="#000000"))
+    title_dict = dict(
+    font=dict(size=22, color="#000000"),   # bigger title
+    x=0.5,                                 # horizontal position (0.5 = centre)
+    xanchor="center",
+)
     if title is not None:
         title_dict["text"] = title
     fig.update_layout(
@@ -200,7 +204,7 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=
             bgcolor="rgba(255,255,255,0.85)",
             bordercolor="#999999",
             borderwidth=1,
-            font=dict(size=11, color="#000000"),
+            font=dict(size=13, color="#000000"),
             x=0.99,
             y=0.99,
             xanchor="right",
@@ -221,8 +225,8 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=
         mirror=True,
         ticks="outside",
         tickcolor="#000000",
-        tickfont=dict(color="#000000"),
-        title_font=dict(color="#000000"),
+        tickfont=dict(color="#000000", size=14),      # tick numbers/labels
+        title_font=dict(color="#000000", size=18),    # axis titles
     )
     fig.update_xaxes(rangemode="tozero", **axis_kwargs)
     if y_range is not None:
@@ -246,12 +250,24 @@ def style_figure(fig, height=CHART_HEIGHT, y_range=None, title=None, legend_pad=
         fig.update_yaxes(rangemode="tozero", **axis_kwargs)
     return fig
 
+# Export settings for the camera icon in the Plotly toolbar
+EXPORT_CONFIG = {
+    "toImageButtonOptions": {
+        "format": "png",        # change to "svg" for vector output
+        "filename": "altruism_chart",
+        "scale": 3,             # same layout as on screen, 3x the pixels
+    },
+    "displaylogo": False,
+}
+
 def show_chart(fig, key=None):
     """Render a chart inside a constrained center column so the fixed height
-    isn't stretched into a thin panoramic strip across the full wide layout."""
+    isn't stretched into a thin panoramic strip across the full wide layout.
+    The toolbar camera icon exports a high-resolution PNG at the same
+    proportions as the on-screen chart."""
     left, mid, right = st.columns([1, 6, 1])
     with mid:
-        st.plotly_chart(fig, use_container_width=True, key=key)
+        st.plotly_chart(fig, use_container_width=True, key=key, config=EXPORT_CONFIG)
 
 def interpolate_to_ticks(ticks, values, target_ticks):
     """Linear interpolation onto a common set of ticks."""
